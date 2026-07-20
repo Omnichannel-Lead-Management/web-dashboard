@@ -1,2 +1,10 @@
 import { initialAppointments } from '../data/mockData'
-export const appointmentService = { list:()=>Promise.resolve(structuredClone(initialAppointments)), create:(item)=>Promise.resolve({...item,id:Date.now()}) }
+
+export const appointmentService = {
+  list() {
+    return Promise.resolve(structuredClone(initialAppointments))
+  },
+  create(appointment) {
+    return Promise.resolve({ ...appointment, id: Date.now() })
+  },
+}
