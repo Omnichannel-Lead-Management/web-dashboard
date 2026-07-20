@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { font-family: 'Manrope', system-ui, sans-serif; background: #f6f7fb; color: #1c2033; -webkit-font-smoothing: antialiased; }
+  a { color: #4f46e5; text-decoration: none; }
+  a:hover { color: #4338ca; }
+  input, textarea, select, button { font-family: inherit; }
+  input::placeholder, textarea::placeholder { color: #9aa0b0; }
+  @keyframes pulse { 0%,100% { opacity: 1; transform: scale(1);} 50% { opacity: .35; transform: scale(.8);} }
+  @keyframes toastin { from { opacity: 0; transform: translateY(10px);} to { opacity: 1; transform: translateY(0);} }
+  @keyframes skel { 0% { background-position: -200px 0;} 100% { background-position: 200px 0;} }
+  .login-aside { display: none; }
+  @media (min-width: 900px) { .login-aside { display: flex !important; } }
+</style>
+</helmet>
+
+<div style="min-height: 100vh; display: flex; flex-direction: column;">
+
+<!-- ================= LOGIN ================= -->
+<sc-if value="{{ showLogin }}" hint-placeholder-val="{{ true }}">
+<div style="flex: 1; display: flex; min-height: 100vh;">
+  <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px; background: #f6f7fb;">
+    <div style="width: 100%; max-width: 380px;">
+      <div style="display: flex; align-items: center; gap: 11px; margin-bottom: 32px;">
+        <span style="width: 40px; height: 40px; border-radius: 12px; background: #4f46e5; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px -4px rgba(79,70,229,.55);"><span style="width: 17px; height: 17px; border: 3px solid #fff; border-radius: 50%; border-right-color: transparent;"></span></span>
+        <span style="font-weight: 800; font-size: 23px; letter-spacing: -.02em;">Loop</span>
+      </div>
+      <h1 style="margin: 0 0 6px; font-size: 27px; font-weight: 800; letter-spacing: -.02em;">Welcome back</h1>
+      <p style="margin: 0 0 28px; font-size: 15px; color: #8a90a2;">Sign in to your Elegant Salon workspace.</p>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Email
+          <input type="email" value="owner@elegantsalon.lk" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 12px 14px; font-size: 14.5px; color: #1c2033; background: #fff;">
+        </label>
+        <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Password
+          <input type="password" value="password" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 12px 14px; font-size: 14.5px; color: #1c2033; background: #fff;">
+        </label>
+        <button onClick="{{ login }}" style="border: none; background: #4f46e5; color: #fff; font-weight: 700; font-size: 15px; padding: 13px; border-radius: 10px; cursor: pointer; box-shadow: 0 8px 18px -6px rgba(79,70,229,.6);" style-hover="background:#4338ca;">Sign in</button>
+        <button onClick="{{ login }}" style="border: 1px solid #e6e8f0; background: #fff; color: #4f46e5; font-weight: 700; font-size: 14px; padding: 12px; border-radius: 10px; cursor: pointer;" style-hover="background:#f7f8fb;">Enter as demo agent (Sithumi)</button>
+      </div>
+      <p style="margin: 22px 0 0; font-size: 13.5px; color: #8a90a2; text-align: center;">New business? <a href="#" onClick="{{ goRegister }}" style="font-weight: 700;">Create an account</a></p>
+    </div>
+  </div>
+  <div class="login-aside" style="flex: 1; background: linear-gradient(150deg,#4f46e5,#7c3aed 55%,#6d28d9); align-items: center; justify-content: center; padding: 48px; position: relative;">
+    <div style="max-width: 400px; color: #fff;">
+      <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; letter-spacing: .16em; text-transform: uppercase; opacity: .7; margin-bottom: 18px;">Omnichannel · One inbox</div>
+      <div style="font-size: 30px; font-weight: 800; line-height: 1.25; letter-spacing: -.02em; text-wrap: balance;">Every customer message from Telegram, WhatsApp &amp; web — in one calm place.</div>
+      <div style="margin-top: 32px; display: flex; gap: 10px;">
+        <span style="font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,.16); padding: 7px 13px; border-radius: 20px;">Live inbox</span>
+        <span style="font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,.16); padding: 7px 13px; border-radius: 20px;">Lead scoring</span>
+        <span style="font-size: 12.5px; font-weight: 600; background: rgba(255,255,255,.16); padding: 7px 13px; border-radius: 20px;">Auto-replies</span>
+      </div>
+    </div>
+  </div>
+</div>
+</sc-if>
+
+<!-- ================= REGISTER ================= -->
+<sc-if value="{{ showRegister }}" hint-placeholder-val="{{ true }}">
+<div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px; min-height: 100vh;">
+  <div style="width: 100%; max-width: 520px;">
+    <div style="display: flex; align-items: center; gap: 11px; margin-bottom: 26px;">
+      <span style="width: 38px; height: 38px; border-radius: 11px; background: #4f46e5; display: inline-flex; align-items: center; justify-content: center;"><span style="width: 16px; height: 16px; border: 3px solid #fff; border-radius: 50%; border-right-color: transparent;"></span></span>
+      <span style="font-weight: 800; font-size: 21px; letter-spacing: -.02em;">Loop</span>
+    </div>
+    <h1 style="margin: 0 0 6px; font-size: 26px; font-weight: 800; letter-spacing: -.02em;">Create your business</h1>
+    <p style="margin: 0 0 26px; font-size: 14.5px; color: #8a90a2;">After registering, connect your Telegram bot to start receiving customer messages.</p>
+    <div style="background: #fff; border: 1px solid #e6e8f0; border-radius: 16px; padding: 26px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+      <label style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Business name *
+        <input value="Elegant Salon" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Sector *
+        <select style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px; background: #fff; color:#1c2033;"><option>Salon</option><option>Tutor</option><option>Photography</option></select></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Owner name *
+        <input value="Nimali Fernando" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Owner email *
+        <input value="owner@elegantsalon.lk" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">City
+        <input value="Colombo" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Password *
+        <input type="password" value="password" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Confirm password *
+        <input type="password" value="password" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+      <button onClick="{{ registerBiz }}" style="grid-column: 1 / -1; margin-top: 4px; border: none; background: #4f46e5; color: #fff; font-weight: 700; font-size: 15px; padding: 13px; border-radius: 10px; cursor: pointer;" style-hover="background:#4338ca;">Create business &amp; continue</button>
+    </div>
+    <p style="margin: 18px 0 0; font-size: 13.5px; color: #8a90a2; text-align: center;">Already have an account? <a href="#" onClick="{{ goLogin }}" style="font-weight: 700;">Sign in</a></p>
+  </div>
+</div>
+</sc-if>
+
+<!-- ================= APP SHELL ================= -->
+<sc-if value="{{ showShell }}" hint-placeholder-val="{{ true }}">
+<div style="flex: 1; display: flex; flex-direction: column; min-height: 100vh;">
+  <!-- top nav -->
+  <div style="height: 60px; flex: none; display: flex; align-items: center; gap: 26px; padding: 0 24px; background: #fff; border-bottom: 1px solid #eef0f5; position: sticky; top: 0; z-index: 20;">
+    <div style="display: flex; align-items: center; gap: 10px;">
+      <span style="width: 28px; height: 28px; border-radius: 9px; background: #4f46e5; display: inline-flex; align-items: center; justify-content: center;"><span style="width: 12px; height: 12px; border: 2.5px solid #fff; border-radius: 50%; border-right-color: transparent;"></span></span>
+      <span style="font-weight: 800; font-size: 17px; letter-spacing: -.01em;">Loop</span>
+    </div>
+    <div style="display: flex; align-items: center; gap: 3px; font-size: 14px; font-weight: 600;">
+      <span onClick="{{ goInbox }}" style="{{ navInbox }}">Inbox</span>
+      <span onClick="{{ goLeads }}" style="{{ navLeads }}">Leads</span>
+      <span onClick="{{ goAppts }}" style="{{ navAppts }}">Appointments</span>
+      <span onClick="{{ goAnalytics }}" style="{{ navAnalytics }}">Analytics</span>
+      <span onClick="{{ goSettings }}" style="{{ navSettings }}">Settings</span>
+    </div>
+    <div style="margin-left: auto; display: flex; align-items: center; gap: 16px;">
+      <div style="display: flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 600; color: #0f7a54; background: #e7f6ee; padding: 5px 11px; border-radius: 20px;"><span style="width: 7px; height: 7px; border-radius: 50%; background: #17b877; animation: pulse 2s infinite;"></span>Live</div>
+      <div style="display: flex; align-items: center; gap: 9px; cursor: pointer;" onClick="{{ logout }}">
+        <div style="text-align: right; line-height: 1.25;"><div style="font-size: 13px; font-weight: 700;">Elegant Salon</div><div style="font-size: 11px; color: #8a90a2;">Sithumi · Agent</div></div>
+        <span style="width: 34px; height: 34px; border-radius: 50%; background: #4f46e5; color: #fff; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center;">SP</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- INBOX ---------- -->
+  <sc-if value="{{ scInbox }}" hint-placeholder-val="{{ true }}">
+  <div style="flex: 1; display: flex; min-height: 0;">
+    <!-- list -->
+    <div style="width: 388px; flex: none; border-right: 1px solid #eef0f5; display: flex; flex-direction: column; background: #fbfbfd;">
+      <div style="padding: 16px 18px 12px; display: flex; flex-direction: column; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 9px; background: #fff; border: 1px solid #e6e8f0; border-radius: 10px; padding: 9px 12px;"><span style="width: 15px; height: 15px; border: 2px solid #b5bacb; border-radius: 50%;"></span><input placeholder="Search conversations" style="border: none; outline: none; font-size: 13.5px; background: transparent; flex: 1;"></div>
+        <div style="display: flex; gap: 7px; flex-wrap: wrap;">
+          <span style="font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 18px; background: #4f46e5; color: #fff;">All</span>
+          <span style="font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 18px; background: #fff; border: 1px solid #e6e8f0; color: #565c6e;">Unread</span>
+          <span style="font-size: 12.5px; font-weight: 600; padding: 5px 11px; border-radius: 18px; background: #fff; border: 1px solid #e6e8f0; color: #565c6e;">Escalated</span>
+        </div>
+      </div>
+      <div style="flex: 1; overflow-y: auto; min-height: 0;">
+        <div style="padding: 6px 18px; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: #d4562f;">⚡ Escalation queue · 1</div>
+        <div onClick="{{ openKasun }}" style="margin: 0 12px 8px; padding: 12px 14px; display: flex; gap: 11px; background: #fff; border: 1.5px solid #f6d5c6; border-left: 4px solid #d4562f; border-radius: 12px; cursor: pointer;">
+          <div style="position: relative; flex: none;"><span style="width: 40px; height: 40px; border-radius: 50%; background: #d9def2; color: #3b3f88; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center;">KP</span><span style="position: absolute; bottom: -2px; right: -2px; width: 16px; height: 16px; border-radius: 50%; background: #229ED9; border: 2.5px solid #fff;"></span></div>
+          <div style="flex: 1; min-width: 0;">
+            <div style="display: flex; align-items: center; gap: 6px;"><span style="font-weight: 700; font-size: 14px;">Kasun P.</span><span style="margin-left: auto; font-size: 11px; color: #8a90a2; font-family: 'JetBrains Mono', monospace;">2m</span></div>
+            <div style="font-size: 12.5px; color: #565c6e; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Can I speak to someone about the premium package?</div>
+            <div style="margin-top: 6px;"><span style="font-size: 10px; font-weight: 700; color: #b25a12; background: #fdecd3; padding: 2px 7px; border-radius: 12px;">Score 72</span></div>
+          </div>
+        </div>
+        <div style="padding: 10px 18px 6px; font-size: 11px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; color: #9aa0b0;">Conversations</div>
+        <sc-for list="{{ conversations }}" as="c" hint-placeholder-count="4">
+          <div onClick="{{ openKasun }}" style="padding: 12px 18px; display: flex; gap: 11px; border-bottom: 1px solid #f2f3f7; cursor: pointer;">
+            <div style="position: relative; flex: none;"><span style="width: 40px; height: 40px; border-radius: 50%; font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; {{ c.avatarStyle }}">{{ c.initials }}</span><span style="position: absolute; bottom: -2px; right: -2px; width: 16px; height: 16px; border-radius: 50%; border: 2.5px solid #fbfbfd; {{ c.dotStyle }}"></span></div>
+            <div style="flex: 1; min-width: 0;">
+              <div style="display: flex; align-items: center; gap: 6px;"><span style="font-weight: 700; font-size: 14px;">{{ c.name }}</span><span style="margin-left: auto; font-size: 11px; color: #8a90a2; font-family: 'JetBrains Mono', monospace;">{{ c.time }}</span></div>
+              <div style="font-size: 12.5px; color: #565c6e; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ c.preview }}</div>
+              <div style="margin-top: 6px;"><span style="font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 12px; {{ c.badgeStyle }}">{{ c.badge }}</span></div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <!-- chat -->
+    <div style="flex: 1; display: flex; flex-direction: column; min-width: 0; background: #fff;">
+      <div style="padding: 13px 22px; border-bottom: 1px solid #eef0f5; display: flex; align-items: center; gap: 13px;">
+        <span style="width: 40px; height: 40px; border-radius: 50%; background: #d9def2; color: #3b3f88; font-weight: 700; font-size: 14px; display: inline-flex; align-items: center; justify-content: center;">KP</span>
+        <div style="line-height: 1.3;">
+          <div style="display: flex; align-items: center; gap: 8px;"><span style="font-weight: 700; font-size: 15px;">Kasun Perera</span><span style="font-size: 11px; font-weight: 600; color: #1a6a94; background: #e3f2fb; padding: 2px 8px; border-radius: 12px;">Telegram</span><span style="font-size: 11px; font-weight: 600; color: #565c6e; background: #f1f2f6; padding: 2px 8px; border-radius: 12px;">EN</span></div>
+          <div style="font-size: 12px; color: #8a90a2; font-family: 'JetBrains Mono', monospace; margin-top: 2px;">@kasun_p · <a href="#" onClick="{{ openLeadKasun }}">Lead #A12F</a></div>
+        </div>
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 9px;">
+          <sc-if value="{{ notClaimed }}" hint-placeholder-val="{{ true }}"><span style="font-size: 12.5px; font-weight: 700; color: #d4562f; background: #fcece4; padding: 7px 12px; border-radius: 9px;">Queued for agent</span><span onClick="{{ claim }}" style="font-size: 13.5px; font-weight: 700; color: #fff; background: #4f46e5; padding: 9px 18px; border-radius: 9px; cursor: pointer; box-shadow: 0 6px 14px -5px rgba(79,70,229,.6);">Claim chat</span></sc-if>
+          <sc-if value="{{ chatClaimed }}" hint-placeholder-val="{{ false }}"><span style="font-size: 12.5px; font-weight: 700; color: #0f7a54; background: #e7f6ee; padding: 7px 12px; border-radius: 9px;">Claimed by you</span><span onClick="{{ release }}" style="font-size: 13.5px; font-weight: 700; color: #565c6e; background: #f1f2f6; padding: 9px 16px; border-radius: 9px; cursor: pointer;">Release</span></sc-if>
+        </div>
+      </div>
+      <div style="flex: 1; overflow-y: auto; min-height: 0; padding: 22px 26px; display: flex; flex-direction: column; gap: 13px;">
+        <div style="text-align: center;"><span style="font-size: 11px; font-weight: 600; color: #9aa0b0; background: #f1f2f6; padding: 4px 12px; border-radius: 12px;">Today · 11:42 PM</span></div>
+        <div style="max-width: 62%; align-self: flex-start;"><div style="background: #f1f2f6; padding: 11px 15px; border-radius: 4px 16px 16px 16px; font-size: 14px; line-height: 1.5;">Hi! How much is a haircut and do you do premium packages?</div><div style="font-size: 10.5px; color: #9aa0b0; margin-top: 4px; font-family: 'JetBrains Mono', monospace;">11:42 PM</div></div>
+        <div style="max-width: 62%; align-self: flex-start;"><div style="display:flex; align-items:center; gap:6px; margin-bottom: 4px;"><span style="width: 20px; height: 20px; border-radius: 6px; background: #ece9ff; color: #4f46e5; font-size: 11px; display:inline-flex; align-items:center; justify-content:center;">✦</span><span style="font-size: 11px; font-weight: 700; color: #4f46e5;">Loop Assistant</span></div><div style="background: #f2f0ff; border: 1px solid #e7e3ff; padding: 11px 15px; border-radius: 4px 16px 16px 16px; font-size: 14px; line-height: 1.5;">Our signature haircut is <b>Rs. 1,500</b>. The Premium Package (cut, wash &amp; styling) is <b>Rs. 4,200</b>. Would you like to book a slot?</div></div>
+        <div style="max-width: 62%; align-self: flex-start;"><div style="background: #f1f2f6; padding: 11px 15px; border-radius: 4px 16px 16px 16px; font-size: 14px; line-height: 1.5;">Can I speak to someone about the premium package?</div></div>
+        <div style="text-align: center;"><span style="font-size: 11px; font-weight: 600; color: #d4562f;">⚠ Chat escalated to a human agent</span></div>
+        <sc-if value="{{ chatClaimed }}" hint-placeholder-val="{{ false }}">
+          <div style="max-width: 62%; align-self: flex-end;"><div style="background: #4f46e5; color: #fff; padding: 11px 15px; border-radius: 16px 16px 4px 16px; font-size: 14px; line-height: 1.5;">Hi Kasun! This is Sithumi 👋 The premium package is our most popular — I can book you in Thursday at 2 PM. Does that work?</div><div style="font-size: 10.5px; color: #9aa0b0; margin-top: 4px; text-align: right; font-family: 'JetBrains Mono', monospace;">You · just now</div></div>
+        </sc-if>
+      </div>
+      <div style="padding: 14px 22px; border-top: 1px solid #eef0f5;">
+        <div style="display: flex; align-items: flex-end; gap: 10px; background: #f7f8fb; border: 1px solid #e6e8f0; border-radius: 12px; padding: 10px 12px;">
+          <input placeholder="{{ composerPlaceholder }}" disabled="{{ composerDisabled }}" style="flex: 1; border: none; outline: none; background: transparent; font-size: 14px; padding: 4px 0;">
+          <span style="width: 38px; height: 38px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; color: #fff; {{ sendBtnStyle }}">➤</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ---------- LEADS ---------- -->
+  <sc-if value="{{ scLeads }}" hint-placeholder-val="{{ true }}">
+  <div style="flex: 1; overflow-y: auto; padding: 28px 32px; max-width: 1200px; width: 100%; margin: 0 auto;">
+    <div style="display: flex; align-items: flex-end; gap: 16px; margin-bottom: 20px;">
+      <div><h1 style="margin: 0; font-size: 25px; font-weight: 800; letter-spacing: -.02em;">Leads</h1><p style="margin: 4px 0 0; font-size: 14px; color: #8a90a2;">Every inquiry, scored and tracked automatically.</p></div>
+      <div style="margin-left: auto; display: flex; gap: 9px;">
+        <div style="display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e6e8f0; border-radius: 10px; padding: 9px 12px;"><span style="width: 14px; height: 14px; border: 2px solid #b5bacb; border-radius: 50%;"></span><input placeholder="Search leads" style="border: none; outline: none; font-size: 13.5px; background: transparent;"></div>
+      </div>
+    </div>
+    <!-- summary bar -->
+    <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px;">
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 13px; padding: 14px 16px;"><div style="font-size: 12px; color: #8a90a2; font-weight: 600;">New</div><div style="font-size: 24px; font-weight: 800; margin-top: 3px;">4</div></div>
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 13px; padding: 14px 16px;"><div style="font-size: 12px; color: #8a90a2; font-weight: 600;">Contacted</div><div style="font-size: 24px; font-weight: 800; margin-top: 3px;">3</div></div>
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 13px; padding: 14px 16px;"><div style="font-size: 12px; color: #8a90a2; font-weight: 600;">Qualified</div><div style="font-size: 24px; font-weight: 800; margin-top: 3px;">2</div></div>
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 13px; padding: 14px 16px;"><div style="font-size: 12px; color: #8a90a2; font-weight: 600;">Converted</div><div style="font-size: 24px; font-weight: 800; margin-top: 3px; color: #0f7a54;">6</div></div>
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 13px; padding: 14px 16px;"><div style="font-size: 12px; color: #8a90a2; font-weight: 600;">Lost</div><div style="font-size: 24px; font-weight: 800; margin-top: 3px; color: #9aa0b0;">1</div></div>
+    </div>
+    <!-- filters -->
+    <div style="display: flex; gap: 7px; margin-bottom: 14px; flex-wrap: wrap;">
+      <span style="font-size: 12.5px; font-weight: 700; padding: 6px 13px; border-radius: 18px; background: #1c2033; color: #fff;">All statuses</span>
+      <span style="font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 18px; background: #fff; border: 1px solid #e6e8f0; color: #565c6e;">Assigned to me</span>
+      <span style="font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 18px; background: #fff; border: 1px solid #e6e8f0; color: #565c6e;">Min score 50+</span>
+      <span style="font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 18px; background: #fff; border: 1px solid #e6e8f0; color: #565c6e;">Telegram</span>
+    </div>
+    <!-- table -->
+    <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; overflow: hidden;">
+      <div style="display: grid; grid-template-columns: 1.6fr 1fr 90px 1.1fr 1fr 70px; gap: 12px; padding: 12px 18px; background: #fbfbfd; border-bottom: 1px solid #eef0f5; font-size: 11.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #8a90a2;">
+        <div>Customer</div><div>Status</div><div>Score</div><div>Interest</div><div>Assigned</div><div>Age</div>
+      </div>
+      <sc-for list="{{ leads }}" as="l" hint-placeholder-count="6">
+        <div onClick="{{ l.open }}" style="display: grid; grid-template-columns: 1.6fr 1fr 90px 1.1fr 1fr 70px; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #f2f3f7; align-items: center; cursor: pointer; font-size: 13.5px;">
+          <div style="display: flex; align-items: center; gap: 10px;"><span style="width: 34px; height: 34px; border-radius: 50%; font-weight: 700; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; {{ l.avatarStyle }}">{{ l.initials }}</span><div><div style="font-weight: 700;">{{ l.name }}</div><div style="font-size: 11px; color: #8a90a2; font-family: 'JetBrains Mono', monospace;">{{ l.id }} · {{ l.platform }}</div></div></div>
+          <div><span style="font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 12px; {{ l.statusStyle }}">{{ l.status }}</span></div>
+          <div><span style="font-weight: 800; {{ l.scoreColor }}">{{ l.score }}</span></div>
+          <div style="color: #565c6e;">{{ l.interest }}</div>
+          <div style="color: #565c6e;">{{ l.agent }}</div>
+          <div style="color: #8a90a2; font-family: 'JetBrains Mono', monospace; font-size: 12px;">{{ l.age }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ---------- LEAD DETAIL ---------- -->
+  <sc-if value="{{ scLeadDetail }}" hint-placeholder-val="{{ true }}">
+  <div style="flex: 1; overflow-y: auto; padding: 24px 32px; max-width: 1100px; width: 100%; margin: 0 auto;">
+    <div style="font-size: 13px; color: #8a90a2; margin-bottom: 14px;"><a href="#" onClick="{{ goLeads }}">Leads</a> <span style="color:#cbd0dd;">/</span> Kasun Perera</div>
+    <div style="display: flex; align-items: center; gap: 14px; margin-bottom: 22px;">
+      <span style="width: 54px; height: 54px; border-radius: 50%; background: #d9def2; color: #3b3f88; font-weight: 700; font-size: 18px; display: inline-flex; align-items: center; justify-content: center;">KP</span>
+      <div style="flex: 1;">
+        <div style="display: flex; align-items: center; gap: 10px;"><h1 style="margin: 0; font-size: 23px; font-weight: 800; letter-spacing: -.02em;">Kasun Perera</h1><span style="font-size: 11px; font-weight: 600; color: #1a6a94; background: #e3f2fb; padding: 2px 9px; border-radius: 12px;">Telegram</span></div>
+        <div style="font-size: 13px; color: #8a90a2; font-family: 'JetBrains Mono', monospace; margin-top: 3px;">Lead #A12F · created 11 hrs ago</div>
+      </div>
+      <div style="display: flex; gap: 9px;">
+        <span onClick="{{ openKasun }}" style="font-size: 13px; font-weight: 700; color: #4f46e5; background: #eef2ff; padding: 9px 15px; border-radius: 9px; cursor: pointer;">Open chat</span>
+        <span style="font-size: 13px; font-weight: 700; color: #fff; background: #4f46e5; padding: 9px 15px; border-radius: 9px; cursor: pointer;">Recalculate score</span>
+      </div>
+    </div>
+    <!-- status stepper -->
+    <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 18px 22px; margin-bottom: 18px;">
+      <div style="display: flex; align-items: center; gap: 0;">
+        <div style="flex:1; text-align:center;"><div style="width: 26px; height: 26px; border-radius: 50%; background: #0f7a54; color: #fff; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700;">✓</div><div style="font-size: 12px; font-weight: 700; margin-top: 5px; color:#0f7a54;">New</div></div>
+        <div style="flex:1; height: 2px; background: #0f7a54; margin-top: -18px;"></div>
+        <div style="flex:1; text-align:center;"><div style="width: 26px; height: 26px; border-radius: 50%; background: #0f7a54; color: #fff; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700;">✓</div><div style="font-size: 12px; font-weight: 700; margin-top: 5px; color:#0f7a54;">Contacted</div></div>
+        <div style="flex:1; height: 2px; background: #4f46e5; margin-top: -18px;"></div>
+        <div style="flex:1; text-align:center;"><div style="width: 26px; height: 26px; border-radius: 50%; background: #4f46e5; color: #fff; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700;">3</div><div style="font-size: 12px; font-weight: 800; margin-top: 5px; color:#4f46e5;">Qualified</div></div>
+        <div style="flex:1; height: 2px; background: #e6e8f0; margin-top: -18px;"></div>
+        <div style="flex:1; text-align:center;"><div style="width: 26px; height: 26px; border-radius: 50%; background: #eef0f5; color: #9aa0b0; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; font-weight: 700;">4</div><div style="font-size: 12px; font-weight: 600; margin-top: 5px; color:#9aa0b0;">Converted</div></div>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 18px;">
+      <div style="display: flex; flex-direction: column; gap: 18px;">
+        <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 20px;">
+          <div style="font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #8a90a2; margin-bottom: 14px;">Notes</div>
+          <textarea style="width: 100%; min-height: 90px; border: 1px solid #e6e8f0; border-radius: 10px; padding: 12px; font-size: 14px; resize: vertical; color:#2a2f42;">Interested in the premium package. Prefers Thursday afternoons. Mentioned a friend's wedding next month.</textarea>
+          <div style="margin-top: 10px; text-align: right;"><span style="font-size: 13px; font-weight: 700; color: #fff; background: #4f46e5; padding: 8px 16px; border-radius: 9px; cursor: pointer; display: inline-block;">Save note</span></div>
+        </div>
+        <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 20px;">
+          <div style="font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #8a90a2; margin-bottom: 16px;">Activity timeline</div>
+          <sc-for list="{{ activities }}" as="a" hint-placeholder-count="4">
+            <div style="display: flex; gap: 12px; padding-bottom: 16px;">
+              <div style="display: flex; flex-direction: column; align-items: center;"><span style="width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; {{ a.dotStyle }}"></span><span style="flex: 1; width: 2px; background: #eef0f5; margin: 4px 0;"></span></div>
+              <div style="flex: 1;"><div style="font-size: 14px; font-weight: 600;">{{ a.text }}</div><div style="font-size: 12px; color: #8a90a2; margin-top: 2px; font-family: 'JetBrains Mono', monospace;">{{ a.meta }}</div></div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 18px;">
+        <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 20px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;"><span style="font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #8a90a2;">Lead score</span><span style="font-size: 26px; font-weight: 800; color: #b25a12;">72</span></div>
+          <div style="height: 8px; border-radius: 5px; background: #f1f2f6; overflow: hidden;"><div style="width: 72%; height: 100%; background: linear-gradient(90deg,#f5a623,#d4562f);"></div></div>
+          <div style="margin-top: 14px; display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; color: #565c6e;">
+            <div style="display: flex; justify-content: space-between;"><span>Chatbot created lead</span><span style="font-weight: 700;">+30</span></div>
+            <div style="display: flex; justify-content: space-between;"><span>Telegram source</span><span style="font-weight: 700;">+10</span></div>
+            <div style="display: flex; justify-content: space-between;"><span>Premium interest</span><span style="font-weight: 700;">+20</span></div>
+            <div style="display: flex; justify-content: space-between;"><span>Recent activity</span><span style="font-weight: 700;">+12</span></div>
+          </div>
+        </div>
+        <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 20px; display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: #8a90a2;">Details</div>
+          <div style="display: flex; justify-content: space-between; font-size: 13.5px;"><span style="color:#8a90a2;">Status</span><select style="border: 1px solid #e6e8f0; border-radius: 8px; padding: 4px 8px; font-size: 12.5px; font-weight: 700; color:#4f46e5;"><option>Qualified</option><option>Contacted</option><option>Converted</option><option>Lost</option></select></div>
+          <div style="display: flex; justify-content: space-between; font-size: 13.5px;"><span style="color:#8a90a2;">Assigned</span><span style="font-weight: 700;">Sithumi P.</span></div>
+          <div style="display: flex; justify-content: space-between; font-size: 13.5px;"><span style="color:#8a90a2;">Source</span><span style="font-weight: 700;">Chatbot</span></div>
+          <div style="display: flex; justify-content: space-between; font-size: 13.5px;"><span style="color:#8a90a2;">Language</span><span style="font-weight: 700;">English</span></div>
+          <div style="display: flex; justify-content: space-between; font-size: 13.5px;"><span style="color:#8a90a2;">Phone</span><span style="font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 12.5px;">+94 77 xxx</span></div>
+          <div><div style="font-size: 12px; color: #8a90a2; margin-bottom: 6px;">Tags</div><div style="display: flex; gap: 6px; flex-wrap: wrap;"><span style="font-size: 11.5px; font-weight: 600; background: #fdecd3; color: #b25a12; padding: 3px 9px; border-radius: 12px;">hot</span><span style="font-size: 11.5px; font-weight: 600; background: #eef2ff; color: #4f46e5; padding: 3px 9px; border-radius: 12px;">premium</span><span style="font-size: 11.5px; font-weight: 600; background: #f1f2f6; color: #565c6e; padding: 3px 9px; border-radius: 12px;">+ add</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ---------- APPOINTMENTS ---------- -->
+  <sc-if value="{{ scAppts }}" hint-placeholder-val="{{ true }}">
+  <div style="flex: 1; overflow-y: auto; padding: 28px 32px; max-width: 1000px; width: 100%; margin: 0 auto;">
+    <div style="display: flex; align-items: flex-end; gap: 16px; margin-bottom: 20px;">
+      <div><h1 style="margin: 0; font-size: 25px; font-weight: 800; letter-spacing: -.02em;">Appointments</h1><p style="margin: 4px 0 0; font-size: 14px; color: #8a90a2;">Bookings from chat and manual entry.</p></div>
+      <span onClick="{{ goApptNew }}" style="margin-left: auto; font-size: 14px; font-weight: 700; color: #fff; background: #4f46e5; padding: 10px 18px; border-radius: 10px; cursor: pointer; box-shadow: 0 6px 14px -5px rgba(79,70,229,.6);">+ New appointment</span>
+    </div>
+    <div style="display: flex; gap: 7px; margin-bottom: 18px; flex-wrap: wrap;">
+      <span style="font-size: 12.5px; font-weight: 700; padding: 6px 13px; border-radius: 18px; background: #1c2033; color: #fff;">Today</span>
+      <span style="font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 18px; background: #fff; border: 1px solid #e6e8f0; color: #565c6e;">This week</span>
+      <span style="font-size: 12.5px; font-weight: 600; padding: 6px 13px; border-radius: 18px; background: #fff; border: 1px solid #e6e8f0; color: #565c6e;">Confirmed</span>
+    </div>
+    <sc-for list="{{ apptDays }}" as="d" hint-placeholder-count="2">
+      <div style="margin-bottom: 22px;">
+        <div style="font-size: 13px; font-weight: 800; color: #565c6e; margin-bottom: 10px;">{{ d.label }}</div>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+          <sc-for list="{{ d.items }}" as="ap" hint-placeholder-count="2">
+            <div style="display: flex; align-items: center; gap: 15px; background: #fff; border: 1px solid #eef0f5; border-radius: 13px; padding: 15px 18px;">
+              <div style="text-align: center; flex: none; width: 62px;"><div style="font-size: 18px; font-weight: 800; color: #4f46e5;">{{ ap.time }}</div><div style="font-size: 11px; color: #8a90a2;">{{ ap.ampm }}</div></div>
+              <div style="width: 1px; align-self: stretch; background: #eef0f5;"></div>
+              <div style="flex: 1;"><div style="font-weight: 700; font-size: 15px;">{{ ap.customer }}</div><div style="font-size: 13px; color: #565c6e; margin-top: 2px;">{{ ap.service }} · {{ ap.duration }}</div></div>
+              <span style="font-size: 11.5px; font-weight: 700; padding: 4px 11px; border-radius: 12px; {{ ap.statusStyle }}">{{ ap.status }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  </sc-if>
+
+  <!-- ---------- CREATE APPOINTMENT ---------- -->
+  <sc-if value="{{ scApptNew }}" hint-placeholder-val="{{ true }}">
+  <div style="flex: 1; overflow-y: auto; padding: 24px 32px; max-width: 720px; width: 100%; margin: 0 auto;">
+    <div style="font-size: 13px; color: #8a90a2; margin-bottom: 14px;"><a href="#" onClick="{{ goAppts }}">Appointments</a> <span style="color:#cbd0dd;">/</span> New</div>
+    <h1 style="margin: 0 0 20px; font-size: 24px; font-weight: 800; letter-spacing: -.02em;">Book an appointment</h1>
+    <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 16px; padding: 24px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Customer name *
+        <input value="Kasun Perera" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Phone
+        <input placeholder="+94 77 …" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Service *
+        <select style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px; background: #fff; color:#1c2033;"><option>Premium package</option><option>Haircut</option><option>Coloring</option></select></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Duration
+        <select style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px; background: #fff; color:#1c2033;"><option>60 min</option><option>30 min</option><option>90 min</option></select></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Date *
+        <input type="date" value="2026-07-23" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 10px 13px; font-size: 14px; color:#1c2033;"></label>
+      <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Link to lead
+        <input value="Lead #A12F — Kasun" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+      <div style="grid-column: 1 / -1;">
+        <div style="font-size: 13px; font-weight: 600; color: #3b4054; margin-bottom: 9px;">Available slots · Thu 23 Jul</div>
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <span style="font-size: 13px; font-weight: 600; padding: 8px 15px; border-radius: 9px; border: 1px solid #e6e8f0; color: #9aa0b0; background: #f7f8fb;">10:00</span>
+          <span style="font-size: 13px; font-weight: 600; padding: 8px 15px; border-radius: 9px; border: 1px solid #e6e8f0; color: #565c6e;">11:30</span>
+          <span style="font-size: 13px; font-weight: 700; padding: 8px 15px; border-radius: 9px; border: 1.5px solid #4f46e5; color: #4f46e5; background: #eef2ff;">2:00 PM</span>
+          <span style="font-size: 13px; font-weight: 600; padding: 8px 15px; border-radius: 9px; border: 1px solid #e6e8f0; color: #565c6e;">3:30</span>
+          <span style="font-size: 13px; font-weight: 600; padding: 8px 15px; border-radius: 9px; border: 1px solid #e6e8f0; color: #565c6e;">4:30</span>
+        </div>
+      </div>
+      <div style="grid-column: 1 / -1; display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px;">
+        <span onClick="{{ goAppts }}" style="font-size: 14px; font-weight: 700; color: #565c6e; background: #f1f2f6; padding: 11px 18px; border-radius: 10px; cursor: pointer;">Cancel</span>
+        <span onClick="{{ goAppts }}" style="font-size: 14px; font-weight: 700; color: #fff; background: #4f46e5; padding: 11px 20px; border-radius: 10px; cursor: pointer;">Book &amp; send confirmation</span>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ---------- ANALYTICS ---------- -->
+  <sc-if value="{{ scAnalytics }}" hint-placeholder-val="{{ true }}">
+  <div style="flex: 1; overflow-y: auto; padding: 28px 32px; max-width: 1120px; width: 100%; margin: 0 auto;">
+    <div style="display: flex; align-items: flex-end; gap: 16px; margin-bottom: 20px;">
+      <div><h1 style="margin: 0; font-size: 25px; font-weight: 800; letter-spacing: -.02em;">Analytics</h1><p style="margin: 4px 0 0; font-size: 14px; color: #8a90a2;">Elegant Salon · last 30 days</p></div>
+      <div style="margin-left: auto; display: flex; gap: 6px; background: #fff; border: 1px solid #e6e8f0; border-radius: 10px; padding: 4px;">
+        <span style="font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 7px; color: #565c6e;">7d</span>
+        <span style="font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 7px; background: #4f46e5; color: #fff;">30d</span>
+        <span style="font-size: 12.5px; font-weight: 700; padding: 6px 12px; border-radius: 7px; color: #565c6e;">Custom</span>
+      </div>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 18px;">
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 18px 20px;"><div style="font-size: 12.5px; color: #8a90a2; font-weight: 600;">Total leads</div><div style="font-size: 30px; font-weight: 800; margin-top: 5px;">128</div><div style="font-size: 12px; font-weight: 700; color: #0f7a54; margin-top: 4px;">▲ 18% vs prev</div></div>
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 18px 20px;"><div style="font-size: 12.5px; color: #8a90a2; font-weight: 600;">Conversion rate</div><div style="font-size: 30px; font-weight: 800; margin-top: 5px;">34%</div><div style="font-size: 12px; font-weight: 700; color: #0f7a54; margin-top: 4px;">▲ 4pts</div></div>
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 18px 20px;"><div style="font-size: 12.5px; color: #8a90a2; font-weight: 600;">Avg lead score</div><div style="font-size: 30px; font-weight: 800; margin-top: 5px;">58</div><div style="font-size: 12px; font-weight: 700; color: #8a90a2; margin-top: 4px;">— steady</div></div>
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 18px 20px;"><div style="font-size: 12.5px; color: #8a90a2; font-weight: 600;">Appointments</div><div style="font-size: 30px; font-weight: 800; margin-top: 5px;">41</div><div style="font-size: 12px; font-weight: 700; color: #0f7a54; margin-top: 4px;">▲ 9</div></div>
+    </div>
+    <div style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 16px;">
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 22px;">
+        <div style="font-size: 14px; font-weight: 800; margin-bottom: 20px;">Leads by status</div>
+        <div style="display: flex; align-items: flex-end; gap: 24px; height: 200px; padding: 0 10px;">
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; height:100%; justify-content:flex-end;"><div style="width: 100%; max-width: 54px; height: 55%; background: #c7cdf7; border-radius: 8px 8px 0 0;"></div><span style="font-size:12px; color:#565c6e; font-weight:600;">New</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; height:100%; justify-content:flex-end;"><div style="width: 100%; max-width: 54px; height: 40%; background: #a5adf2; border-radius: 8px 8px 0 0;"></div><span style="font-size:12px; color:#565c6e; font-weight:600;">Contacted</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; height:100%; justify-content:flex-end;"><div style="width: 100%; max-width: 54px; height: 30%; background: #7c83ee; border-radius: 8px 8px 0 0;"></div><span style="font-size:12px; color:#565c6e; font-weight:600;">Qualified</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; height:100%; justify-content:flex-end;"><div style="width: 100%; max-width: 54px; height: 78%; background: #4f46e5; border-radius: 8px 8px 0 0;"></div><span style="font-size:12px; color:#565c6e; font-weight:600;">Converted</span></div>
+          <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:8px; height:100%; justify-content:flex-end;"><div style="width: 100%; max-width: 54px; height: 15%; background: #cfd3e0; border-radius: 8px 8px 0 0;"></div><span style="font-size:12px; color:#565c6e; font-weight:600;">Lost</span></div>
+        </div>
+      </div>
+      <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 22px;">
+        <div style="font-size: 14px; font-weight: 800; margin-bottom: 20px;">Leads by platform</div>
+        <div style="display: flex; align-items: center; gap: 22px;">
+          <div style="width: 130px; height: 130px; border-radius: 50%; background: conic-gradient(#229ED9 0 55%, #25D366 55% 82%, #64748b 82% 100%); display: flex; align-items: center; justify-content: center;"><div style="width: 80px; height: 80px; border-radius: 50%; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center;"><span style="font-size: 20px; font-weight: 800;">128</span><span style="font-size: 10px; color: #8a90a2;">leads</span></div></div>
+          <div style="display: flex; flex-direction: column; gap: 11px;">
+            <div style="display: flex; align-items: center; gap: 9px; font-size: 13px;"><span style="width: 11px; height: 11px; border-radius: 3px; background: #229ED9;"></span>Telegram <b style="margin-left:4px;">55%</b></div>
+            <div style="display: flex; align-items: center; gap: 9px; font-size: 13px;"><span style="width: 11px; height: 11px; border-radius: 3px; background: #25D366;"></span>WhatsApp <b style="margin-left:4px;">27%</b></div>
+            <div style="display: flex; align-items: center; gap: 9px; font-size: 13px;"><span style="width: 11px; height: 11px; border-radius: 3px; background: #64748b;"></span>Web chat <b style="margin-left:4px;">18%</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ---------- SETTINGS ---------- -->
+  <sc-if value="{{ scSettings }}" hint-placeholder-val="{{ true }}">
+  <div style="flex: 1; display: flex; min-height: 0;">
+    <div style="width: 240px; flex: none; border-right: 1px solid #eef0f5; padding: 22px 16px; background: #fbfbfd;">
+      <h1 style="margin: 0 0 16px; padding: 0 8px; font-size: 20px; font-weight: 800; letter-spacing: -.02em;">Settings</h1>
+      <div style="display: flex; flex-direction: column; gap: 3px;">
+        <span onClick="{{ setTabChannels }}" style="{{ tabChannels }}">Connect channels</span>
+        <span onClick="{{ setTabTelegram }}" style="{{ tabTelegram }}">Telegram</span>
+        <span onClick="{{ setTabWhatsapp }}" style="{{ tabWhatsapp }}">WhatsApp</span>
+        <span onClick="{{ setTabChatbot }}" style="{{ tabChatbot }}">Chatbot</span>
+        <span onClick="{{ setTabProfile }}" style="{{ tabProfile }}">Business profile</span>
+      </div>
+    </div>
+    <div style="flex: 1; overflow-y: auto; padding: 30px 36px; max-width: 720px;">
+      <!-- Channels checklist -->
+      <sc-if value="{{ stChannels }}" hint-placeholder-val="{{ true }}">
+        <h2 style="margin: 0 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -.02em;">Connect your channels</h2>
+        <p style="margin: 0 0 24px; font-size: 14.5px; color: #8a90a2;">Link your messaging channels so customer messages land in your inbox.</p>
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="display: flex; align-items: center; gap: 15px; background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 18px 20px;">
+            <span style="width: 44px; height: 44px; border-radius: 12px; background: #e3f2fb; color: #229ED9; font-weight: 800; font-size: 18px; display: inline-flex; align-items: center; justify-content: center;">T</span>
+            <div style="flex: 1;"><div style="font-weight: 700; font-size: 15px;">Telegram</div><div style="font-size: 13px; color: #0f7a54; font-weight: 600; margin-top: 2px;">✓ Connected · @ElegantSalonSupportBot</div></div>
+            <span onClick="{{ setTabTelegram }}" style="font-size: 13px; font-weight: 700; color: #4f46e5; background: #eef2ff; padding: 8px 14px; border-radius: 9px; cursor: pointer;">Manage</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 15px; background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 18px 20px;">
+            <span style="width: 44px; height: 44px; border-radius: 12px; background: #e2f4ec; color: #12724d; font-weight: 800; font-size: 18px; display: inline-flex; align-items: center; justify-content: center;">W</span>
+            <div style="flex: 1;"><div style="font-weight: 700; font-size: 15px;">WhatsApp <span style="font-size: 11px; font-weight: 600; color: #8a90a2;">· optional</span></div><div style="font-size: 13px; color: #8a90a2; font-weight: 600; margin-top: 2px;">Not connected</div></div>
+            <span onClick="{{ setTabWhatsapp }}" style="font-size: 13px; font-weight: 700; color: #fff; background: #4f46e5; padding: 8px 14px; border-radius: 9px; cursor: pointer;">Connect</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 15px; background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 18px 20px;">
+            <span style="width: 44px; height: 44px; border-radius: 12px; background: #ece9ff; color: #4f46e5; font-weight: 800; font-size: 18px; display: inline-flex; align-items: center; justify-content: center;">✦</span>
+            <div style="flex: 1;"><div style="font-weight: 700; font-size: 15px;">Chatbot template</div><div style="font-size: 13px; color: #0f7a54; font-weight: 600; margin-top: 2px;">✓ Salon template applied</div></div>
+            <span style="font-size: 12px; font-weight: 700; color: #8a90a2;">Auto</span>
+          </div>
+        </div>
+      </sc-if>
+      <!-- Telegram -->
+      <sc-if value="{{ stTelegram }}" hint-placeholder-val="{{ false }}">
+        <h2 style="margin: 0 0 20px; font-size: 22px; font-weight: 800; letter-spacing: -.02em;">Telegram setup</h2>
+        <div style="display: flex; align-items: center; gap: 12px; background: #e7f6ee; border: 1px solid #c5ead6; border-radius: 13px; padding: 16px 18px; margin-bottom: 20px;"><span style="width: 34px; height: 34px; border-radius: 50%; background: #17b877; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 800;">✓</span><div><div style="font-weight: 700; font-size: 14.5px; color:#0f7a54;">Connected</div><div style="font-size: 13px; color: #12724d;">@ElegantSalonSupportBot is receiving messages.</div></div></div>
+        <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 14px; padding: 20px; margin-bottom: 16px;">
+          <div style="font-size: 14px; font-weight: 800; margin-bottom: 12px;">How to connect a new bot</div>
+          <ol style="margin: 0; padding-left: 20px; font-size: 13.5px; color: #565c6e; line-height: 1.9;">
+            <li>Open <a href="https://t.me/BotFather" target="_blank">@BotFather</a> on Telegram</li>
+            <li>Send <code style="background:#f1f2f6; padding:1px 6px; border-radius:5px; font-family:'JetBrains Mono',monospace;">/newbot</code> and name it "Elegant Salon Support"</li>
+            <li>Choose a username ending in <b>bot</b></li>
+            <li>Copy the token BotFather gives you and paste it below</li>
+          </ol>
+        </div>
+        <label style="display: block; font-size: 13px; font-weight: 600; color: #3b4054; margin-bottom: 7px;">Bot token</label>
+        <div style="display: flex; gap: 10px;"><input type="password" value="7284461::AAH••••••••••••••••••" style="flex: 1; border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px; font-family: 'JetBrains Mono', monospace;"><span style="font-size: 14px; font-weight: 700; color: #fff; background: #4f46e5; padding: 11px 20px; border-radius: 10px; cursor: pointer;">Reconnect</span></div>
+      </sc-if>
+      <!-- WhatsApp -->
+      <sc-if value="{{ stWhatsapp }}" hint-placeholder-val="{{ false }}">
+        <h2 style="margin: 0 0 6px; font-size: 22px; font-weight: 800; letter-spacing: -.02em;">Connect WhatsApp</h2>
+        <p style="margin: 0 0 24px; font-size: 14.5px; color: #8a90a2;">Scan the QR code with WhatsApp on your business phone.</p>
+        <div style="display: flex; gap: 26px; align-items: center; background: #fff; border: 1px solid #eef0f5; border-radius: 16px; padding: 28px;">
+          <div style="width: 190px; height: 190px; border-radius: 12px; background: repeating-conic-gradient(#1c2033 0% 25%, #fff 0% 50%) 50% / 16px 16px; border: 8px solid #fff; box-shadow: inset 0 0 0 1px #e6e8f0; flex: none; position: relative;"><span style="position: absolute; inset: 0; margin: auto; width: 40px; height: 40px; background: #25D366; border-radius: 9px;"></span></div>
+          <div style="flex: 1;">
+            <div style="display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: #b25a12; margin-bottom: 14px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: #f5a623; animation: pulse 1.5s infinite;"></span>Waiting for scan…</div>
+            <ol style="margin: 0; padding-left: 18px; font-size: 13.5px; color: #565c6e; line-height: 1.9;"><li>Open WhatsApp → Settings → Linked devices</li><li>Tap "Link a device"</li><li>Point your phone at this screen</li></ol>
+            <span style="display: inline-block; margin-top: 16px; font-size: 13px; font-weight: 700; color: #4f46e5; background: #eef2ff; padding: 9px 16px; border-radius: 9px; cursor: pointer;">↻ Refresh QR</span>
+          </div>
+        </div>
+      </sc-if>
+      <!-- Chatbot -->
+      <sc-if value="{{ stChatbot }}" hint-placeholder-val="{{ false }}">
+        <h2 style="margin: 0 0 20px; font-size: 22px; font-weight: 800; letter-spacing: -.02em;">Chatbot</h2>
+        <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 16px; padding: 22px;">
+          <div style="display: flex; align-items: center; gap: 16px;">
+            <div style="flex: 1;"><div style="font-weight: 700; font-size: 16px;">Enable chatbot auto-replies</div><div style="font-size: 13.5px; color: #8a90a2; margin-top: 4px;">When disabled, all messages go directly to your agents.</div></div>
+            <span onClick="{{ toggleChatbot }}" style="width: 52px; height: 30px; border-radius: 16px; padding: 3px; cursor: pointer; display: inline-flex; {{ toggleTrackStyle }}"><span style="width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 2px 5px rgba(0,0,0,.2); transition: transform .18s; {{ toggleKnobStyle }}"></span></span>
+          </div>
+          <div style="margin-top: 18px; padding-top: 18px; border-top: 1px solid #f2f3f7; font-size: 13px; color: #8a90a2; line-height: 1.6;">Chatbot uses predefined <b style="color:#565c6e;">salon</b> templates — pricing, hours, and booking handoff. It is not free-form AI.</div>
+        </div>
+      </sc-if>
+      <!-- Profile -->
+      <sc-if value="{{ stProfile }}" hint-placeholder-val="{{ false }}">
+        <h2 style="margin: 0 0 20px; font-size: 22px; font-weight: 800; letter-spacing: -.02em;">Business profile</h2>
+        <div style="background: #fff; border: 1px solid #eef0f5; border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 16px;">
+          <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Business name
+            <input value="Elegant Salon" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+          <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Sector
+            <select style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px; background: #fff; color:#1c2033;"><option>Salon</option><option>Tutor</option><option>Photography</option></select></label>
+          <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Owner email
+            <input value="owner@elegantsalon.lk" style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px;"></label>
+          <label style="display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 600; color: #3b4054;">Business ID
+            <input value="biz_001" disabled style="border: 1px solid #e6e8f0; border-radius: 10px; padding: 11px 13px; font-size: 14px; color: #9aa0b0; background: #f7f8fb; font-family: 'JetBrains Mono', monospace;"></label>
+          <div style="text-align: right;"><span style="font-size: 14px; font-weight: 700; color: #fff; background: #4f46e5; padding: 10px 20px; border-radius: 10px; cursor: pointer; display: inline-block;">Save changes</span></div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+  </sc-if>
+
+</div>
+</sc-if>
+
+<!-- toast -->
+<sc-if value="{{ showToast }}" hint-placeholder-val="{{ false }}">
+<div style="position: fixed; bottom: 24px; right: 24px; z-index: 50; display: flex; align-items: center; gap: 11px; background: #1c2033; color: #fff; padding: 13px 18px; border-radius: 12px; box-shadow: 0 16px 36px -12px rgba(0,0,0,.4); animation: toastin .3s ease; font-size: 14px; font-weight: 600;">
+  <span style="width: 20px; height: 20px; border-radius: 50%; background: #17b877; display: inline-flex; align-items: center; justify-content: center; font-size: 12px;">✓</span>{{ toastMsg }}
+</div>
+</sc-if>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { route: 'login', settingsTab: 'channels', chatClaimed: false, chatbotOn: true, toast: '' };
+
+  go(r) { this.setState({ route: r }); }
+  toast(msg) {
+    this.setState({ toast: msg });
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.setState({ toast: '' }), 2600);
+  }
+
+  navStyle(active) {
+    const base = 'padding:7px 13px;border-radius:8px;cursor:pointer;';
+    return active ? base + 'background:#eef2ff;color:#4f46e5;' : base + 'color:#6b7180;';
+  }
+  tabStyle(active) {
+    const base = 'padding:9px 12px;border-radius:9px;cursor:pointer;font-size:14px;font-weight:600;';
+    return active ? base + 'background:#eef2ff;color:#4f46e5;' : base + 'color:#565c6e;';
+  }
+
+  renderVals() {
+    const r = this.state.route;
+    const st = this.state.settingsTab;
+    const claimed = this.state.chatClaimed;
+
+    const conversations = [
+      { name: 'Amaya R.', initials: 'AR', time: '18m', preview: 'Do you have slots on Saturday for coloring?', badge: 'Score 55', avatarStyle: 'background:#e2f4ec;color:#12724d;', dotStyle: 'background:#25D366;', badgeStyle: 'color:#b25a12;background:#fdecd3;' },
+      { name: 'Tharindu F.', initials: 'TF', time: '1h', preview: 'Thanks! See you Thursday', badge: 'converted', avatarStyle: 'background:#d9def2;color:#3b3f88;', dotStyle: 'background:#229ED9;', badgeStyle: 'color:#0f7a54;background:#dff3e8;' },
+      { name: 'Web visitor', initials: 'W', time: '3h', preview: 'What are your opening hours?', badge: 'new', avatarStyle: 'background:#eceef3;color:#565c6e;', dotStyle: 'background:#64748b;', badgeStyle: 'color:#565c6e;background:#eef0f5;' },
+      { name: 'Dinuka J.', initials: 'DJ', time: 'Yesterday', preview: 'Perfect, thank you so much!', badge: 'contacted', avatarStyle: 'background:#e2f4ec;color:#12724d;', dotStyle: 'background:#25D366;', badgeStyle: 'color:#3730a3;background:#e0e7ff;' },
+    ];
+
+    const statusMap = {
+      new: 'color:#565c6e;background:#eef0f5;',
+      contacted: 'color:#3730a3;background:#e0e7ff;',
+      qualified: 'color:#4f46e5;background:#eef2ff;',
+      converted: 'color:#0f7a54;background:#dff3e8;',
+      lost: 'color:#9aa0b0;background:#f1f2f6;',
+    };
+    const rawLeads = [
+      { name: 'Kasun Perera', initials: 'KP', id: '#A12F', platform: 'Telegram', status: 'qualified', score: 72, interest: 'Premium package', agent: 'Sithumi P.', age: '11h', av: 'background:#d9def2;color:#3b3f88;' },
+      { name: 'Amaya Rathnayake', initials: 'AR', id: '#B77C', platform: 'WhatsApp', status: 'contacted', score: 55, interest: 'Coloring', agent: 'Sithumi P.', age: '18m', av: 'background:#e2f4ec;color:#12724d;' },
+      { name: 'Web visitor', initials: 'W', id: '#C019', platform: 'Web', status: 'new', score: 22, interest: 'Opening hours', agent: 'Unassigned', age: '3h', av: 'background:#eceef3;color:#565c6e;' },
+      { name: 'Tharindu Fonseka', initials: 'TF', id: '#D204', platform: 'Telegram', status: 'converted', score: 88, interest: 'Haircut', agent: 'Sithumi P.', age: '2d', av: 'background:#d9def2;color:#3b3f88;' },
+      { name: 'Dinuka Jay.', initials: 'DJ', id: '#E551', platform: 'WhatsApp', status: 'contacted', score: 47, interest: 'Bridal package', agent: 'Nimali F.', age: '3d', av: 'background:#e2f4ec;color:#12724d;' },
+      { name: 'Ishara Silva', initials: 'IS', id: '#F890', platform: 'Telegram', status: 'lost', score: 15, interest: 'Kids haircut', agent: 'Unassigned', age: '5d', av: 'background:#d9def2;color:#3b3f88;' },
+    ];
+    const leads = rawLeads.map((l) => ({
+      ...l,
+      avatarStyle: l.av,
+      statusStyle: statusMap[l.status] || statusMap.new,
+      scoreColor: l.score >= 70 ? 'color:#b25a12;' : l.score >= 40 ? 'color:#565c6e;' : 'color:#9aa0b0;',
+      open: () => this.setState({ route: 'leadDetail' }),
+    }));
+
+    const activities = [
+      { text: 'Appointment discussion started', meta: 'by Sithumi · 5 min ago', dotStyle: 'background:#4f46e5;' },
+      { text: 'Status changed to Qualified', meta: 'by Sithumi · 8 min ago', dotStyle: 'background:#4f46e5;' },
+      { text: 'Chat escalated to human agent', meta: 'system · 12 min ago', dotStyle: 'background:#d4562f;' },
+      { text: 'Lead created from chatbot', meta: 'system · 11 hrs ago', dotStyle: 'background:#17b877;' },
+    ];
+
+    const apptStatus = {
+      confirmed: 'color:#0f7a54;background:#dff3e8;',
+      completed: 'color:#3730a3;background:#e0e7ff;',
+      cancelled: 'color:#9aa0b0;background:#f1f2f6;',
+    };
+    const mkAppt = (a) => ({ ...a, statusStyle: apptStatus[a.status] });
+    const apptDays = [
+      { label: 'Today · Thursday, 23 Jul', items: [
+        mkAppt({ time: '2:00', ampm: 'PM', customer: 'Kasun Perera', service: 'Premium package', duration: '60 min', status: 'confirmed' }),
+        mkAppt({ time: '4:30', ampm: 'PM', customer: 'Amaya Rathnayake', service: 'Coloring', duration: '90 min', status: 'confirmed' }),
+      ] },
+      { label: 'Tomorrow · Friday, 24 Jul', items: [
+        mkAppt({ time: '10:00', ampm: 'AM', customer: 'Dinuka Jayawardena', service: 'Bridal trial', duration: '120 min', status: 'confirmed' }),
+        mkAppt({ time: '1:00', ampm: 'PM', customer: 'Ishara Silva', service: 'Kids haircut', duration: '30 min', status: 'completed' }),
+      ] },
+    ];
+
+    return {
+      showLogin: r === 'login',
+      showRegister: r === 'register',
+      showShell: r !== 'login' && r !== 'register',
+      scInbox: r === 'inbox',
+      scLeads: r === 'leads',
+      scLeadDetail: r === 'leadDetail',
+      scAppts: r === 'appts',
+      scApptNew: r === 'apptNew',
+      scAnalytics: r === 'analytics',
+      scSettings: r === 'settings',
+
+      navInbox: this.navStyle(r === 'inbox'),
+      navLeads: this.navStyle(r === 'leads' || r === 'leadDetail'),
+      navAppts: this.navStyle(r === 'appts' || r === 'apptNew'),
+      navAnalytics: this.navStyle(r === 'analytics'),
+      navSettings: this.navStyle(r === 'settings'),
+
+      tabChannels: this.tabStyle(st === 'channels'),
+      tabTelegram: this.tabStyle(st === 'telegram'),
+      tabWhatsapp: this.tabStyle(st === 'whatsapp'),
+      tabChatbot: this.tabStyle(st === 'chatbot'),
+      tabProfile: this.tabStyle(st === 'profile'),
+      stChannels: st === 'channels',
+      stTelegram: st === 'telegram',
+      stWhatsapp: st === 'whatsapp',
+      stChatbot: st === 'chatbot',
+      stProfile: st === 'profile',
+
+      notClaimed: !claimed,
+      chatClaimed: claimed,
+      composerPlaceholder: claimed ? 'Type a reply to Kasun…' : 'Claim this chat to reply to Kasun…',
+      composerDisabled: !claimed,
+      sendBtnStyle: claimed ? 'background:#4f46e5;cursor:pointer;' : 'background:#d5d8e2;',
+
+      toggleTrackStyle: this.state.chatbotOn ? 'background:#4f46e5;justify-content:flex-end;' : 'background:#d5d8e2;justify-content:flex-start;',
+      toggleKnobStyle: '',
+
+      showToast: !!this.state.toast,
+      toastMsg: this.state.toast,
+
+      conversations, leads, activities, apptDays,
+
+      login: () => { this.setState({ route: 'inbox' }); this.toast('Signed in · connecting live inbox'); },
+      goRegister: () => this.go('register'),
+      goLogin: () => this.go('login'),
+      registerBiz: () => { this.setState({ route: 'settings', settingsTab: 'channels' }); this.toast('Business created — connect your Telegram bot'); },
+      logout: () => this.go('login'),
+      goInbox: () => this.go('inbox'),
+      goLeads: () => this.go('leads'),
+      goAppts: () => this.go('appts'),
+      goApptNew: () => this.go('apptNew'),
+      goAnalytics: () => this.go('analytics'),
+      goSettings: () => this.go('settings'),
+      openKasun: () => this.go('inbox'),
+      openLeadKasun: () => this.go('leadDetail'),
+      claim: () => { this.setState({ chatClaimed: true }); this.toast('Chat claimed — you can reply now'); },
+      release: () => { this.setState({ chatClaimed: false }); this.toast('Chat released back to AI'); },
+      setTabChannels: () => this.setState({ settingsTab: 'channels' }),
+      setTabTelegram: () => this.setState({ settingsTab: 'telegram' }),
+      setTabWhatsapp: () => this.setState({ settingsTab: 'whatsapp' }),
+      setTabChatbot: () => this.setState({ settingsTab: 'chatbot' }),
+      setTabProfile: () => this.setState({ settingsTab: 'profile' }),
+      toggleChatbot: () => { const v = !this.state.chatbotOn; this.setState({ chatbotOn: v }); this.toast(v ? 'Chatbot enabled' : 'Chatbot disabled — messages go to agents'); },
+    };
+  }
+}
+</script>
+</body>
+</html>
