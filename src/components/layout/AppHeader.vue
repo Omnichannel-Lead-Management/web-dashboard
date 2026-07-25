@@ -1,11 +1,25 @@
 <script setup>
+import { computed } from 'vue'
 import { LogOut } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import AppNavigation from './AppNavigation.vue'
-import { currentBusiness, currentAgent } from '../../data/mockData'
+
 const router = useRouter()
 const store = useAppStore()
+
+const initials = computed(() => {
+  const name = store.agentName || 'A'
+  return name.slice(0, 2).toUpperCase()
+})
+
+const liveLabel = computed(() => {
+  if (store.connectionStatus === 'online') return 'Live'
+  if (store.connectionStatus === 'connecting' || store.connectionStatus === 'connected') {
+    return 'Connecting'
+  }
+  return 'Offline'
+})
 
 function logOut() {
   store.logout()
@@ -20,16 +34,16 @@ function logOut() {
     </RouterLink>
     <AppNavigation />
     <div class="account">
-      <span class="live">
+      <span class="live" :class="{ offline: store.connectionStatus !== 'online' }">
         <i />
-        Live
+        {{ liveLabel }}
       </span>
       <button @click="logOut" title="Sign out">
         <span>
-          <b>{{ currentBusiness.name }}</b>
-          <small>{{ currentAgent.shortName }} · {{ currentAgent.role }}</small>
+          <b>{{ store.businessName || 'Business' }}</b>
+          <small>{{ store.agentName }} · Agent</small>
         </span>
-        <em>{{ currentAgent.initials }}</em>
+        <em>{{ initials }}</em>
         <LogOut :size="16" />
       </button>
     </div>
@@ -112,6 +126,13 @@ header {
 .account small {
   color: var(--muted);
   font-size: 10.5px;
+}
+.live.offline {
+  color: var(--muted);
+  background: #f1f2f6;
+}
+.live.offline i {
+  background: var(--muted);
 }
 .account em {
   width: 34px;

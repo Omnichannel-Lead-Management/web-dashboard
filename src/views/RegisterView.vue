@@ -17,7 +17,7 @@ const registrationForm = reactive({
   confirm: 'password',
 })
 
-function submitRegistration() {
+async function submitRegistration() {
   if (
     !registrationForm.business ||
     !registrationForm.owner ||
@@ -34,9 +34,13 @@ function submitRegistration() {
     return
   }
 
-  store.login()
-  store.notify('Business created — connect your Telegram bot')
-  router.push('/settings?section=channels')
+  try {
+    await store.registerBusiness(registrationForm)
+    store.notify('Business created — connect your Telegram bot')
+    router.push('/settings?section=telegram')
+  } catch (error) {
+    validationError.value = error.message || 'Could not create business'
+  }
 }
 </script>
 <template>

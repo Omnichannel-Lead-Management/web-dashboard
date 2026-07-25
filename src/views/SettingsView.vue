@@ -20,7 +20,13 @@ const store = useAppStore()
 const route = useRoute()
 const router = useRouter()
 const activeSection = ref(route.query.section || 'channels')
-const businessProfile = reactive({ ...currentBusiness })
+const businessProfile = reactive({
+  ...currentBusiness,
+  name: store.businessName || currentBusiness.name,
+  id: store.businessId || currentBusiness.id,
+})
+const telegramToken = ref('')
+const telegramBusy = ref(false)
 
 watch(
   () => route.query.section,
@@ -38,6 +44,23 @@ function selectSection(sectionId) {
 
 function showSavedMessage(message = 'Settings saved') {
   store.notify(message)
+}
+
+async function connectTelegramBot() {
+  if (!telegramToken.value.trim()) {
+    store.notify('Paste a BotFather token first', 'error')
+    return
+  }
+
+  telegramBusy.value = true
+  try {
+    await store.connectTelegram(telegramToken.value.trim())
+    telegramToken.value = ''
+  } catch (error) {
+    store.notify(error.message || 'Telegram connect failed', 'error')
+  } finally {
+    telegramBusy.value = false
+  }
 }
 </script>
 <template>
@@ -92,16 +115,17 @@ function showSavedMessage(message = 'Settings saved') {
           <template v-else-if="activeSection === 'telegram'">
             <h2>Telegram setup</h2>
             <p class="intro">
-              Your Telegram bot is connected and receiving messages.
+              Connect a BotFather token. Gateway public URL:
+              <code>{{ store.businessId ? `business ${store.businessId}` : 'create a business first' }}</code>
             </p>
             <div class="status">
               <Check :size="20" />
               <div>
-                <b>@ElegantSalonSupportBot</b>
-                <small>Connected · last message 2 minutes ago</small>
+                <b>{{ store.businessName || 'Your business' }}</b>
+                <small>Webhook target uses PUBLIC_BASE_URL on the gateway</small>
               </div>
             </div>
-            <h3>Connect a different bot</h3>
+            <h3>Connect bot</h3>
             <ol>
               <li>Open @BotFather in Telegram.</li>
               <li>Create a bot and copy its token.</li>
@@ -110,6 +134,7 @@ function showSavedMessage(message = 'Settings saved') {
             <label class="field">
               Bot token
               <input
+                v-model="telegramToken"
                 type="password"
                 placeholder="Paste your BotFather token"
                 autocomplete="off"
@@ -117,13 +142,11 @@ function showSavedMessage(message = 'Settings saved') {
             </label>
             <small class="security">
               <ShieldCheck :size="14" />
-              Tokens are sent securely when backend integration is enabled. No
-              token is stored in this demo.
+              Token is sent to the gateway and stored per business. Make sure
+              PUBLIC_BASE_URL is reachable by Telegram.
             </small>
-            <AppButton
-              @click="showSavedMessage('Telegram connection test queued')"
-            >
-              Test connection
+            <AppButton :disabled="telegramBusy" @click="connectTelegramBot">
+              {{ telegramBusy ? 'Connecting…' : 'Connect Telegram' }}
             </AppButton>
           </template>
           <template v-else-if="activeSection === 'whatsapp'">

@@ -16,11 +16,20 @@ const conversationFilter = ref('All')
 const activeMobilePanel = ref('list')
 const areDetailsVisible = ref(false)
 
+const emptyConversation = {
+  id: '',
+  name: 'No conversations yet',
+  claimed: false,
+  escalated: false,
+}
+
 const selectedConversation = computed(
   () =>
     store.conversations.find(
       (conversation) => conversation.id === store.selectedConversationId,
-    ) || store.conversations[0],
+    ) ||
+    store.conversations[0] ||
+    emptyConversation,
 )
 
 function selectConversation(id) {
@@ -34,10 +43,12 @@ function selectConversation(id) {
     conversation.unread = false
   }
 
+  store.loadHistory(id)
   activeMobilePanel.value = 'chat'
 }
 
 function sendMessage(messageText) {
+  if (!selectedConversation.value.id) return
   store.sendMessage(selectedConversation.value.id, messageText)
 
   nextTick(() => {
@@ -58,7 +69,10 @@ function claimConversation(id = selectedConversation.value.id) {
       <div class="viewbar">
         <div>
           <h1>Inbox</h1>
-          <span>6 open · 1 waiting for a human</span>
+          <span>
+            {{ store.conversations.length }} conversations · gateway
+            {{ store.connectionStatus }}
+          </span>
         </div>
         <div class="switch" aria-label="Inbox view">
           <button
@@ -115,8 +129,8 @@ function claimConversation(id = selectedConversation.value.id) {
             <PanelRight :size="18" />
           </button>
           <ChatComposer
-            :disabled="!selectedConversation.claimed"
-            :name="selectedConversation.name.split(' ')[0]"
+            :disabled="!selectedConversation.id || !selectedConversation.claimed"
+            :name="(selectedConversation.name || 'Customer').split(' ')[0]"
             @send="sendMessage"
           />
         </section>

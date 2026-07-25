@@ -11,7 +11,7 @@ const loginForm = reactive({
   password: 'password',
 })
 
-function submitLogin() {
+async function submitLogin() {
   validationError.value = ''
 
   const hasValidEmail = /^\S+@\S+\.\S+$/.test(loginForm.email)
@@ -23,9 +23,18 @@ function submitLogin() {
     return
   }
 
-  store.login()
-  store.notify('Signed in · inbox connected')
-  router.push('/inbox')
+  try {
+    await store.login({
+      name: 'Elegant Salon',
+      sector: 'Salon',
+      owner_email: loginForm.email,
+      agent_name: 'Sithumi',
+    })
+    store.notify('Signed in · connected to gateway')
+    router.push('/inbox')
+  } catch (error) {
+    validationError.value = error.message || 'Could not connect to gateway'
+  }
 }
 </script>
 <template>

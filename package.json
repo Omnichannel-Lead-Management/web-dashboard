@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "test": "bun test src",
+    "test:unit": "bun test src/services/mappers.test.js",
+    "test:integration": "bun test src/services/gatewayApi.integration.test.js && bun run build",
     "format": "prettier --write \"src/**/*.{vue,js,ts,css,json}\"",
     "format:check": "prettier --check \"src/**/*.{vue,js,ts,css,json}\""
   },
