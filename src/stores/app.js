@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { leads as seedLeads, initialAppointments } from '../data/mockData'
+import { leads as seedLeads, initialAppointments, conversations as mockConversations, messagesByConversation as mockMessages } from '../data/mockData'
 import { gatewayApi } from '../services/gatewayApi'
 import { createAgentSocket } from '../services/agentSocket'
 import {
@@ -20,6 +20,18 @@ const STORAGE = {
   chatbot: 'loop-chatbot',
 }
 
+/** Stable mock agent used for the demo login button. */
+export const DEMO_AGENT = {
+  id: 'agent_sithumi',
+  name: 'Sithumi Perera',
+  shortName: 'Sithumi',
+  business: {
+    name: 'Elegant Salon',
+    sector: 'Salon',
+    owner_email: 'owner@elegantsalon.lk',
+  },
+}
+
 export const useAppStore = defineStore('app', () => {
   const authenticated = ref(localStorage.getItem(STORAGE.auth) === 'true')
   const inboxView = ref(localStorage.getItem(STORAGE.inboxView) || 'conversation')
@@ -36,6 +48,7 @@ export const useAppStore = defineStore('app', () => {
   const agentId = ref(localStorage.getItem(STORAGE.agentId) || 'agent_demo')
   const agentName = ref(localStorage.getItem(STORAGE.agentName) || 'Agent')
   const loadingInbox = ref(false)
+  const demoMode = ref(false)
 
   let toastTimer
   let socketApi = null
@@ -326,13 +339,14 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function ensureBusinessSession({
-    name = 'Elegant Salon',
-    sector = 'Salon',
-    owner_email = 'owner@elegantsalon.lk',
-    agent_name = 'Sithumi',
+    name = DEMO_AGENT.business.name,
+    sector = DEMO_AGENT.business.sector,
+    owner_email = DEMO_AGENT.business.owner_email,
+    agent_id = DEMO_AGENT.id,
+    agent_name = DEMO_AGENT.shortName,
   } = {}) {
     agentName.value = agent_name
-    agentId.value = localStorage.getItem(STORAGE.agentId) || `agent_${Date.now().toString(36)}`
+    agentId.value = agent_id
 
     if (businessId.value) {
       try {
@@ -358,6 +372,31 @@ export const useAppStore = defineStore('app', () => {
     persistSession()
     await refreshConversations()
     connectAgentChannel()
+  }
+
+  /** One-click demo sign-in as agent Sithumi (no password check). */
+  async function loginAsDemoAgent() {
+    try {
+      demoMode.value = false
+      await login({
+        ...DEMO_AGENT.business,
+        agent_id: DEMO_AGENT.id,
+        agent_name: DEMO_AGENT.shortName,
+      })
+    } catch {
+      businessId.value = 'biz_demo_salon'
+      businessName.value = DEMO_AGENT.business.name
+      agentId.value = DEMO_AGENT.id
+      agentName.value = DEMO_AGENT.shortName
+      authenticated.value = true
+      demoMode.value = true
+      conversations.value = structuredClone(mockConversations)
+      messages.value = structuredClone(mockMessages)
+      selectedConversationId.value = mockConversations[0]?.id || ''
+      connectionStatus.value = 'offline'
+      persistSession()
+      notify('Signed in as Sithumi · offline demo (start gateway on :3000 for live inbox)')
+    }
   }
 
   async function registerBusiness(form) {
@@ -394,6 +433,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function claim(id) {
+    if (demoMode.value) {
+      const conversation = conversations.value.find((item) => item.id === id)
+      if (conversation) conversation.claimed = true
+      notify('Chat claimed — you can reply now')
+      return
+    }
     const { platform, messenger_id } = parseConversationId(id)
     const sent = socketApi?.send({
       type: 'claim_chat',
@@ -405,6 +450,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function release(id) {
+    if (demoMode.value) {
+      const conversation = conversations.value.find((item) => item.id === id)
+      if (conversation) conversation.claimed = false
+      notify('Chat released back to the queue')
+      return
+    }
     const { platform, messenger_id } = parseConversationId(id)
     const sent = socketApi?.send({
       type: 'release_chat',
@@ -416,7 +467,6 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function sendMessage(id, text) {
-    const { platform, messenger_id } = parseConversationId(id)
     const optimistic = {
       id: Date.now(),
       sender: 'agent',
@@ -428,6 +478,9 @@ export const useAppStore = defineStore('app', () => {
     const conversation = conversations.value.find((item) => item.id === id)
     if (conversation) conversation.preview = text
 
+    if (demoMode.value) return
+
+    const { platform, messenger_id } = parseConversationId(id)
     const sent = socketApi?.send({
       type: 'send_message',
       platform,
@@ -482,8 +535,10 @@ export const useAppStore = defineStore('app', () => {
     agentId,
     agentName,
     loadingInbox,
+    demoMode,
     notify,
     login,
+    loginAsDemoAgent,
     registerBusiness,
     logout,
     setInboxView,

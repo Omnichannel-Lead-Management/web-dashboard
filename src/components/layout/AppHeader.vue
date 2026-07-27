@@ -14,6 +14,7 @@ const initials = computed(() => {
 })
 
 const liveLabel = computed(() => {
+  if (store.demoMode) return 'Demo'
   if (store.connectionStatus === 'online') return 'Live'
   if (store.connectionStatus === 'connecting' || store.connectionStatus === 'connected') {
     return 'Connecting'
@@ -34,7 +35,7 @@ function logOut() {
     </RouterLink>
     <AppNavigation />
     <div class="account">
-      <span class="live" :class="{ offline: store.connectionStatus !== 'online' }">
+      <span class="live" :class="{ offline: store.connectionStatus !== 'online', demo: store.demoMode }">
         <i />
         {{ liveLabel }}
       </span>
@@ -130,6 +131,13 @@ header {
 .live.offline {
   color: var(--muted);
   background: #f1f2f6;
+}
+.live.demo {
+  color: #7c3aed;
+  background: #f3e8ff;
+}
+.live.demo i {
+  background: #7c3aed;
 }
 .live.offline i {
   background: var(--muted);

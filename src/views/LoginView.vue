@@ -25,16 +25,21 @@ async function submitLogin() {
 
   try {
     await store.login({
-      name: 'Elegant Salon',
-      sector: 'Salon',
       owner_email: loginForm.email,
+      agent_id: 'agent_sithumi',
       agent_name: 'Sithumi',
     })
-    store.notify('Signed in · connected to gateway')
+    store.notify('Signed in as Sithumi · connected to gateway')
     router.push('/inbox')
   } catch (error) {
     validationError.value = error.message || 'Could not connect to gateway'
   }
+}
+
+async function enterAsDemoAgent() {
+  validationError.value = ''
+  await store.loginAsDemoAgent()
+  router.push('/inbox')
 }
 </script>
 <template>
@@ -75,7 +80,7 @@ async function submitLogin() {
             type="button"
             variant="outline"
             size="lg"
-            @click="submitLogin"
+            @click="enterAsDemoAgent"
           >
             Enter as demo agent (Sithumi)
           </AppButton>
