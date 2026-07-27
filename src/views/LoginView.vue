@@ -35,12 +35,6 @@ async function submitLogin() {
     validationError.value = error.message || 'Could not connect to gateway'
   }
 }
-
-async function enterAsDemoAgent() {
-  validationError.value = ''
-  await store.loginAsDemoAgent()
-  router.push('/inbox')
-}
 </script>
 <template>
   <main class="auth">
@@ -76,14 +70,6 @@ async function enterAsDemoAgent() {
             {{ validationError }}
           </p>
           <AppButton size="lg">Sign in</AppButton>
-          <AppButton
-            type="button"
-            variant="outline"
-            size="lg"
-            @click="enterAsDemoAgent"
-          >
-            Enter as demo agent (Sithumi)
-          </AppButton>
         </form>
         <p class="foot">
           New business?

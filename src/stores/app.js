@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { leads as seedLeads, initialAppointments, conversations as mockConversations, messagesByConversation as mockMessages } from '../data/mockData'
+import { leads as seedLeads, initialAppointments } from '../data/mockData'
 import { gatewayApi } from '../services/gatewayApi'
 import { createAgentSocket } from '../services/agentSocket'
 import {
@@ -20,16 +20,15 @@ const STORAGE = {
   chatbot: 'loop-chatbot',
 }
 
-/** Stable mock agent used for the demo login button. */
-export const DEMO_AGENT = {
-  id: 'agent_sithumi',
-  name: 'Sithumi Perera',
-  shortName: 'Sithumi',
-  business: {
-    name: 'Elegant Salon',
-    sector: 'Salon',
-    owner_email: 'owner@elegantsalon.lk',
-  },
+/**
+ * Workspace a sign-in registers/attaches to when the form does not say
+ * otherwise. Set VITE_BUSINESS_* at build time to point the dashboard at a
+ * real company instead of editing this file.
+ */
+const DEFAULT_WORKSPACE = {
+  name: import.meta.env.VITE_BUSINESS_NAME || 'My Business',
+  sector: import.meta.env.VITE_BUSINESS_SECTOR || 'salon',
+  owner_email: import.meta.env.VITE_BUSINESS_EMAIL || '',
 }
 
 export const useAppStore = defineStore('app', () => {
@@ -48,7 +47,6 @@ export const useAppStore = defineStore('app', () => {
   const agentId = ref(localStorage.getItem(STORAGE.agentId) || 'agent_demo')
   const agentName = ref(localStorage.getItem(STORAGE.agentName) || 'Agent')
   const loadingInbox = ref(false)
-  const demoMode = ref(false)
 
   let toastTimer
   let socketApi = null
@@ -339,14 +337,15 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function ensureBusinessSession({
-    name = DEMO_AGENT.business.name,
-    sector = DEMO_AGENT.business.sector,
-    owner_email = DEMO_AGENT.business.owner_email,
-    agent_id = DEMO_AGENT.id,
-    agent_name = DEMO_AGENT.shortName,
+    name = DEFAULT_WORKSPACE.name,
+    sector = DEFAULT_WORKSPACE.sector,
+    owner_email = DEFAULT_WORKSPACE.owner_email,
+    agent_id = '',
+    agent_name = 'Agent',
   } = {}) {
     agentName.value = agent_name
-    agentId.value = agent_id
+    agentId.value =
+      agent_id || localStorage.getItem(STORAGE.agentId) || `agent_${Date.now().toString(36)}`
 
     if (businessId.value) {
       try {
@@ -372,31 +371,6 @@ export const useAppStore = defineStore('app', () => {
     persistSession()
     await refreshConversations()
     connectAgentChannel()
-  }
-
-  /** One-click demo sign-in as agent Sithumi (no password check). */
-  async function loginAsDemoAgent() {
-    try {
-      demoMode.value = false
-      await login({
-        ...DEMO_AGENT.business,
-        agent_id: DEMO_AGENT.id,
-        agent_name: DEMO_AGENT.shortName,
-      })
-    } catch {
-      businessId.value = 'biz_demo_salon'
-      businessName.value = DEMO_AGENT.business.name
-      agentId.value = DEMO_AGENT.id
-      agentName.value = DEMO_AGENT.shortName
-      authenticated.value = true
-      demoMode.value = true
-      conversations.value = structuredClone(mockConversations)
-      messages.value = structuredClone(mockMessages)
-      selectedConversationId.value = mockConversations[0]?.id || ''
-      connectionStatus.value = 'offline'
-      persistSession()
-      notify('Signed in as Sithumi · offline demo (start gateway on :3000 for live inbox)')
-    }
   }
 
   async function registerBusiness(form) {
@@ -433,12 +407,6 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function claim(id) {
-    if (demoMode.value) {
-      const conversation = conversations.value.find((item) => item.id === id)
-      if (conversation) conversation.claimed = true
-      notify('Chat claimed — you can reply now')
-      return
-    }
     const { platform, messenger_id } = parseConversationId(id)
     const sent = socketApi?.send({
       type: 'claim_chat',
@@ -450,12 +418,6 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function release(id) {
-    if (demoMode.value) {
-      const conversation = conversations.value.find((item) => item.id === id)
-      if (conversation) conversation.claimed = false
-      notify('Chat released back to the queue')
-      return
-    }
     const { platform, messenger_id } = parseConversationId(id)
     const sent = socketApi?.send({
       type: 'release_chat',
@@ -477,8 +439,6 @@ export const useAppStore = defineStore('app', () => {
 
     const conversation = conversations.value.find((item) => item.id === id)
     if (conversation) conversation.preview = text
-
-    if (demoMode.value) return
 
     const { platform, messenger_id } = parseConversationId(id)
     const sent = socketApi?.send({
@@ -535,10 +495,8 @@ export const useAppStore = defineStore('app', () => {
     agentId,
     agentName,
     loadingInbox,
-    demoMode,
     notify,
     login,
-    loginAsDemoAgent,
     registerBusiness,
     logout,
     setInboxView,
