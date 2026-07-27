@@ -26,6 +26,13 @@ const STORAGE = {
  * real company instead of editing this file.
  */
 const DEFAULT_WORKSPACE = {
+  /**
+   * Existing business this dashboard belongs to. Set it and sign-in attaches to
+   * that tenant instead of registering a fresh one — the gateway's
+   * createBusiness does not deduplicate, so without this every browser that has
+   * never signed in would spawn another empty business.
+   */
+  id: import.meta.env.VITE_BUSINESS_ID || '',
   name: import.meta.env.VITE_BUSINESS_NAME || 'My Business',
   sector: import.meta.env.VITE_BUSINESS_SECTOR || 'salon',
   owner_email: import.meta.env.VITE_BUSINESS_EMAIL || '',
@@ -42,7 +49,7 @@ export const useAppStore = defineStore('app', () => {
   const selectedConversationId = ref('')
   const toast = ref(null)
   const connectionStatus = ref('offline')
-  const businessId = ref(localStorage.getItem(STORAGE.businessId) || '')
+  const businessId = ref(localStorage.getItem(STORAGE.businessId) || DEFAULT_WORKSPACE.id)
   const businessName = ref(localStorage.getItem(STORAGE.businessName) || 'My Business')
   const agentId = ref(localStorage.getItem(STORAGE.agentId) || 'agent_demo')
   const agentName = ref(localStorage.getItem(STORAGE.agentName) || 'Agent')
