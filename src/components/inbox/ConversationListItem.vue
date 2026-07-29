@@ -14,7 +14,7 @@ defineProps({
 })
 </script>
 <template>
-  <button class="item" :class="{ active, escalated: conversation.escalated }">
+  <button class="item" :class="{ active }">
     <AppAvatar
       :initials="conversation.initials"
       :channel="conversation.channel"
@@ -26,16 +26,11 @@ defineProps({
       </span>
       <span class="preview">{{ conversation.preview }}</span>
       <span class="meta">
-        <AppBadge
-          :tone="conversation.escalated ? 'warning' : conversation.status"
-        >
-          {{
-            conversation.escalated
-              ? 'Score ' + conversation.score
-              : conversation.status
-          }}
+        <i class="channel-dot" :class="conversation.channel.toLowerCase()" />
+        <AppBadge :tone="conversation.status">
+          {{ conversation.status }}
         </AppBadge>
-        <i v-if="conversation.unread" aria-label="Unread" />
+        <i v-if="conversation.unread" class="unread" aria-label="Unread" />
       </span>
     </span>
   </button>
@@ -46,21 +41,17 @@ defineProps({
   border: 0;
   border-bottom: 1px solid #f0f1f5;
   background: transparent;
-  padding: 13px 17px;
+  padding: 14px 20px;
   display: flex;
   gap: 11px;
   text-align: left;
 }
 .item:hover,
 .item.active {
-  background: #fff;
+  background: #f4f4ff;
 }
 .item.active {
-  box-shadow: inset 3px 0 var(--primary);
-}
-.item.escalated {
-  border-left: 4px solid var(--danger);
-  background: #fffaf8;
+  box-shadow: none;
 }
 .copy {
   flex: 1;
@@ -89,11 +80,23 @@ defineProps({
   text-overflow: ellipsis;
   margin: 3px 0 6px;
 }
-.meta i {
+.meta .unread {
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: var(--primary);
   margin-left: auto;
+}
+.channel-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--web);
+}
+.channel-dot.telegram {
+  background: var(--telegram);
+}
+.channel-dot.whatsapp {
+  background: var(--whatsapp);
 }
 </style>
