@@ -11,7 +11,7 @@ defineProps({
 <template>
   <article class="message" :class="message.sender">
     <span v-if="message.sender === 'bot'" class="bot-label">
-      <Sparkles :size="14" />
+      <i><Sparkles :size="11" /></i>
       Loop Assistant
     </span>
     <p>{{ message.text }}</p>
@@ -20,15 +20,16 @@ defineProps({
 </template>
 <style scoped>
 .message {
-  max-width: 68%;
+  width: fit-content;
+  max-width: 66%;
   align-self: flex-start;
 }
 .message p {
   margin: 0;
   background: #f1f2f6;
-  border-radius: 4px 16px 16px;
+  border-radius: 4px 18px 18px;
   padding: 11px 15px;
-  font-size: 13.5px;
+  font-size: 14px;
   line-height: 1.55;
 }
 .message time {
@@ -60,6 +61,14 @@ defineProps({
   font-size: 10.5px;
   font-weight: 700;
   margin-bottom: 4px;
+}
+.bot-label i {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  background: #ece9ff;
+  border-radius: 6px;
 }
 @media (max-width: 600px) {
   .message {

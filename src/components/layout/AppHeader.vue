@@ -1,21 +1,37 @@
 <script setup>
-import { computed } from 'vue'
-import { LogOut } from 'lucide-vue-next'
+import { computed, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import AppNavigation from './AppNavigation.vue'
 
 const router = useRouter()
 const store = useAppStore()
+const previewIdentity = inject('inboxPreviewIdentity', null)
+
+const displayedBusinessName = computed(
+  () => previewIdentity?.value?.business?.name || store.businessName,
+)
+const displayedAgentName = computed(
+  () => previewIdentity?.value?.agent?.name || store.agentName,
+)
+const displayedConnectionStatus = computed(
+  () => previewIdentity?.value?.connectionStatus || store.connectionStatus,
+)
 
 const initials = computed(() => {
-  const name = store.agentName || 'A'
+  if (previewIdentity?.value?.agent?.initials) {
+    return previewIdentity.value.agent.initials
+  }
+  const name = displayedAgentName.value || 'A'
   return name.slice(0, 2).toUpperCase()
 })
 
 const liveLabel = computed(() => {
-  if (store.connectionStatus === 'online') return 'Live'
-  if (store.connectionStatus === 'connecting' || store.connectionStatus === 'connected') {
+  if (displayedConnectionStatus.value === 'online') return 'Live'
+  if (
+    displayedConnectionStatus.value === 'connecting' ||
+    displayedConnectionStatus.value === 'connected'
+  ) {
     return 'Connecting'
   }
   return 'Offline'
@@ -34,17 +50,19 @@ function logOut() {
     </RouterLink>
     <AppNavigation />
     <div class="account">
-      <span class="live" :class="{ offline: store.connectionStatus !== 'online' }">
+      <span
+        class="live"
+        :class="{ offline: displayedConnectionStatus !== 'online' }"
+      >
         <i />
         {{ liveLabel }}
       </span>
       <button @click="logOut" title="Sign out">
         <span>
-          <b>{{ store.businessName || 'Business' }}</b>
-          <small>{{ store.agentName }} · Agent</small>
+          <b>{{ displayedBusinessName || 'Business' }}</b>
+          <small>{{ displayedAgentName }} · Agent</small>
         </span>
         <em>{{ initials }}</em>
-        <LogOut :size="16" />
       </button>
     </div>
   </header>
@@ -54,8 +72,8 @@ header {
   height: var(--header-h);
   display: flex;
   align-items: center;
-  gap: 25px;
-  padding: 0 24px;
+  gap: 28px;
+  padding: 0 28px;
   background: #fff;
   border-bottom: 1px solid #eef0f5;
   position: sticky;
@@ -69,8 +87,8 @@ header {
   color: var(--text);
 }
 .brand > i {
-  width: 29px;
-  height: 29px;
+  width: 35px;
+  height: 35px;
   border-radius: 9px;
   background: var(--primary);
   display: grid;
@@ -84,13 +102,13 @@ header {
   border-radius: 50%;
 }
 .brand strong {
-  font-size: 17px;
+  font-size: 20px;
 }
 .account {
   margin-left: auto;
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
 }
 .live {
   display: flex;
@@ -135,15 +153,15 @@ header {
   background: var(--muted);
 }
 .account em {
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: var(--primary);
   color: #fff;
   display: grid;
   place-items: center;
   font-style: normal;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
 @media (max-width: 900px) {
