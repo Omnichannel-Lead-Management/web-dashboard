@@ -26,6 +26,7 @@ const emit = defineEmits(['claim', 'release', 'back'])
     <AppAvatar
       :initials="conversation.initials"
       :channel="conversation.channel"
+      :show-dot="false"
     />
     <div class="person">
       <span class="identity">

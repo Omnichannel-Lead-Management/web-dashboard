@@ -12,6 +12,10 @@ defineProps({
     type: String,
     default: 'md',
   },
+  showDot: {
+    type: Boolean,
+    default: true,
+  },
 })
 </script>
 <template>
@@ -22,7 +26,11 @@ defineProps({
     >
       {{ initials }}
     </span>
-    <span v-if="channel" class="dot" :class="`dot--${channel.toLowerCase()}`" />
+    <span
+      v-if="channel && showDot"
+      class="dot"
+      :class="`dot--${channel.toLowerCase()}`"
+    />
   </span>
 </template>
 <style scoped>

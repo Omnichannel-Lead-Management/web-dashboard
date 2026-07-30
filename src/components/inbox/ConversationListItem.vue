@@ -18,6 +18,7 @@ defineProps({
     <AppAvatar
       :initials="conversation.initials"
       :channel="conversation.channel"
+      :show-dot="false"
     />
     <span class="copy">
       <span class="top">
@@ -81,11 +82,7 @@ defineProps({
   margin: 3px 0 6px;
 }
 .meta .unread {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--primary);
-  margin-left: auto;
+  display: none;
 }
 .channel-dot {
   width: 8px;

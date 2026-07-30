@@ -19,6 +19,7 @@ defineEmits(['open'])
       <AppAvatar
         :initials="conversation.initials"
         :channel="conversation.channel"
+        :show-dot="false"
       />
       <span class="copy">
         <span class="top">
@@ -27,6 +28,7 @@ defineEmits(['open'])
         </span>
         <span class="preview">{{ conversation.preview }}</span>
         <span class="meta">
+          <i class="channel-dot" :class="conversation.channel.toLowerCase()" />
           <AppBadge v-if="conversation.score != null" tone="warning">
             Score {{ conversation.score }}
           </AppBadge>
@@ -84,7 +86,22 @@ defineEmits(['open'])
   white-space: nowrap;
 }
 .meta {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 9px;
   margin-top: 7px;
+}
+.channel-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--web);
+}
+.channel-dot.telegram {
+  background: var(--telegram);
+}
+.channel-dot.whatsapp {
+  background: var(--whatsapp);
 }
 </style>

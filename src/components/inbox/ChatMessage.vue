@@ -21,7 +21,7 @@ defineProps({
 <style scoped>
 .message {
   width: fit-content;
-  max-width: min(500px, 66%);
+  max-width: 66%;
   align-self: flex-start;
 }
 .message p {
