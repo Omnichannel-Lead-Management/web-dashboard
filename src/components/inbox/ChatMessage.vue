@@ -1,5 +1,5 @@
 <script setup>
-import { Sparkles } from 'lucide-vue-next'
+import { Sparkles, Mic, Image as ImageIcon } from 'lucide-vue-next'
 
 defineProps({
   message: {
@@ -14,11 +14,29 @@ defineProps({
       <i><Sparkles :size="11" /></i>
       Loop Assistant
     </span>
+    <span v-if="message.kind" class="media-label">
+      <Mic v-if="message.kind === 'voice'" :size="11" />
+      <ImageIcon v-else :size="11" />
+      {{ message.kind === 'voice' ? 'Voice note' : 'Photo' }}
+    </span>
     <p>{{ message.text }}</p>
     <time v-if="message.time" class="mono">{{ message.time }}</time>
   </article>
 </template>
 <style scoped>
+/* Marks text that came from a transcript or an image description rather than
+   typing, so an agent knows to allow for the assistant having misheard. */
+.media-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
 .message {
   width: fit-content;
   max-width: 66%;

@@ -212,6 +212,27 @@ function durationLabel(startTime, endTime) {
     : `${minutes} min`
 }
 
+/**
+ * Voice notes and photos are transcribed/described to text by the gateway, so the
+ * body is already readable here. `kind` only drives a badge — it tells the agent
+ * the words came from a transcript (which can be imperfect) rather than typing.
+ */
+function mediaKind(metadata) {
+  if (!metadata) return null
+  const parsed =
+    typeof metadata === 'string'
+      ? (() => {
+          try {
+            return JSON.parse(metadata)
+          } catch {
+            return null
+          }
+        })()
+      : metadata
+  const type = parsed?.type
+  return type === 'voice' || type === 'audio' ? 'voice' : type === 'photo' || type === 'image' ? 'photo' : null
+}
+
 export function mapHistoryMessage(entry) {
   const sender =
     entry.from === 'user' ? 'customer' : entry.from === 'agent' ? 'agent' : 'bot'
@@ -220,6 +241,7 @@ export function mapHistoryMessage(entry) {
     id: entry.id ?? `${entry.timestamp}-${entry.from}`,
     sender,
     text: entry.text,
+    kind: mediaKind(entry.metadata),
     time: formatTime(entry.timestamp),
   }
 }

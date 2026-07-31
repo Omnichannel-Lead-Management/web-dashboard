@@ -197,3 +197,31 @@ describe('toAppointmentPayload unit', () => {
     expect(new Date(payload.startTime).getHours()).toBe(12)
   })
 })
+
+describe('mapHistoryMessage media kind', () => {
+  test('a voice note is badged from the stored metadata', () => {
+    const m = mapHistoryMessage({
+      id: 1,
+      from: 'user',
+      text: 'Do you have Saturday slots for colouring?',
+      metadata: '{"chat_type":"private","type":"voice"}',
+      timestamp: Date.now(),
+    })
+    expect(m.kind).toBe('voice')
+    expect(m.text).toBe('Do you have Saturday slots for colouring?')
+  })
+
+  test('WhatsApp image/audio types map to the same two badges', () => {
+    expect(mapHistoryMessage({ from: 'user', metadata: { type: 'image' } }).kind).toBe('photo')
+    expect(mapHistoryMessage({ from: 'user', metadata: { type: 'audio' } }).kind).toBe('voice')
+  })
+
+  test('typed messages carry no badge', () => {
+    expect(mapHistoryMessage({ from: 'user', metadata: '{"type":"text"}' }).kind).toBeNull()
+    expect(mapHistoryMessage({ from: 'user' }).kind).toBeNull()
+  })
+
+  test('malformed metadata does not throw', () => {
+    expect(mapHistoryMessage({ from: 'user', metadata: 'not json' }).kind).toBeNull()
+  })
+})

@@ -165,6 +165,7 @@ export const useAppStore = defineStore('app', () => {
             id: entry.id,
             from: entry.is_from_user ? 'user' : 'ai',
             text: entry.message_text || entry.text,
+            metadata: entry.metadata,
             timestamp: entry.created_at || entry.timestamp,
           }),
         )
