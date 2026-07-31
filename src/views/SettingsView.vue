@@ -1,5 +1,5 @@
 <script setup>
-import { ref, watch, reactive } from 'vue'
+import { ref, watch, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Send,
@@ -13,18 +13,62 @@ import AppShell from '../components/layout/AppShell.vue'
 import SettingsNavigation from '../components/settings/SettingsNavigation.vue'
 import AppButton from '../components/common/AppButton.vue'
 import AppBadge from '../components/common/AppBadge.vue'
-import { channels, currentBusiness } from '../data/mockData'
+import { gatewayApi } from '../services/gatewayApi'
 import { useAppStore } from '../stores/app'
 
 const store = useAppStore()
 const route = useRoute()
 const router = useRouter()
 const activeSection = ref(route.query.section || 'channels')
+
+/** Real business record; channel state below is derived from it, not assumed. */
+const business = ref(null)
 const businessProfile = reactive({
-  ...currentBusiness,
-  name: store.businessName || currentBusiness.name,
-  id: store.businessId || currentBusiness.id,
+  name: store.businessName || 'My Business',
+  id: store.businessId || '',
+  sector: '',
+  email: '',
+  city: '',
+  phone: '',
 })
+
+async function loadBusiness() {
+  if (!store.businessId) return
+  try {
+    const result = await gatewayApi.getBusiness(store.businessId)
+    business.value = result.business
+    businessProfile.name = result.business.name || businessProfile.name
+    businessProfile.id = result.business.id
+    businessProfile.sector = result.business.sector || ''
+    businessProfile.email = result.business.owner_email || ''
+  } catch (error) {
+    store.notify(error.message || 'Failed to load business', 'error')
+  }
+}
+
+onMounted(loadBusiness)
+
+const channels = computed(() => [
+  {
+    name: 'Telegram',
+    connected: Boolean(business.value?.telegram_connected),
+    detail: business.value?.telegram_bot_username
+      ? `@${business.value.telegram_bot_username}`
+      : 'Paste a bot token to connect',
+  },
+  {
+    name: 'WhatsApp',
+    connected: Boolean(business.value?.whatsapp_connected),
+    detail: business.value?.whatsapp_instance_name
+      ? `Instance ${business.value.whatsapp_instance_name}`
+      : 'Scan a QR to link a number',
+  },
+  {
+    name: 'Web chat',
+    connected: true,
+    detail: 'Widget active',
+  },
+])
 const telegramToken = ref('')
 const telegramBusy = ref(false)
 

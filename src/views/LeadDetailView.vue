@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft,
@@ -18,9 +18,45 @@ const store = useAppStore()
 const route = useRoute()
 const router = useRouter()
 
-const lead = computed(() =>
-  store.leads.find((currentLead) => currentLead.id === route.params.id),
+/**
+ * The list view may not have been visited (deep link, refresh), so fetch the
+ * lead by id and fall back to the store copy while that is in flight.
+ */
+const fetched = ref(null)
+const activities = ref([])
+const loading = ref(false)
+
+const lead = computed(
+  () =>
+    fetched.value ||
+    store.leads.find((currentLead) => currentLead.id === route.params.id),
 )
+
+async function load(id) {
+  if (!id) return
+  loading.value = true
+  try {
+    const result = await store.loadLead(id)
+    if (result) {
+      fetched.value = result.lead
+      activities.value = result.activities
+    }
+  } catch (error) {
+    store.notify(error.message || 'Failed to load lead', 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(() => load(route.params.id))
+watch(() => route.params.id, load)
+
+/** Colour the dot by what happened, matching the existing green/orange styles. */
+function activityTone(type) {
+  if (type === 'lead_created') return 'green'
+  if (type === 'status_changed' || type === 'assigned') return 'orange'
+  return ''
+}
 
 const statuses = ['new', 'contacted', 'qualified', 'converted', 'lost']
 </script>
@@ -87,23 +123,15 @@ const statuses = ['new', 'contacted', 'qualified', 'converted', 'lost']
           <h3>Notes</h3>
           <p>{{ lead.notes }}</p>
           <h3>Activity</h3>
-          <ol>
-            <li>
-              <i />
-              Status changed to {{ lead.status }}
-              <small>by Sithumi · 8 min ago</small>
-            </li>
-            <li>
-              <i class="orange" />
-              Chat escalated to human agent
-              <small>system · 12 min ago</small>
-            </li>
-            <li>
-              <i class="green" />
-              Lead created from chatbot
-              <small>system · 11 hrs ago</small>
+          <ol v-if="activities.length">
+            <li v-for="entry in activities" :key="entry.id">
+              <i :class="activityTone(entry.type)" />
+              {{ entry.description }}
+              <small>{{ entry.by }} · {{ entry.age }} ago</small>
             </li>
           </ol>
+          <p v-else-if="loading" class="muted">Loading activity…</p>
+          <p v-else class="muted">No activity recorded yet.</p>
         </section>
         <aside class="card">
           <h2>Contact details</h2>
@@ -146,6 +174,9 @@ const statuses = ['new', 'contacted', 'qualified', 'converted', 'lost']
   </AppShell>
 </template>
 <style scoped>
+.muted {
+  color: var(--muted);
+}
 .back {
   border: 0;
   background: none;

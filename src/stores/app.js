@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { leads as seedLeads, initialAppointments } from '../data/mockData'
 import { gatewayApi } from '../services/gatewayApi'
 import { createAgentSocket } from '../services/agentSocket'
 import {
   mapConversation,
   mapHistoryMessage,
+  mapLead,
+  mapLeadActivity,
+  mapAppointment,
+  toAppointmentPayload,
   conversationId,
   parseConversationId,
 } from '../services/mappers'
@@ -44,13 +47,31 @@ export const useAppStore = defineStore('app', () => {
   const chatbotEnabled = ref(localStorage.getItem(STORAGE.chatbot) !== 'false')
   const conversations = ref([])
   const messages = ref({})
-  const leads = ref(structuredClone(seedLeads))
-  const appointments = ref(structuredClone(initialAppointments))
+  const leads = ref([])
+  const appointments = ref([])
+  const loadingLeads = ref(false)
+  const loadingAppointments = ref(false)
+  /** EventSource for the live lead feed; closed on sign-out. */
+  let leadStream = null
   const selectedConversationId = ref('')
   const toast = ref(null)
   const connectionStatus = ref('offline')
-  const businessId = ref(localStorage.getItem(STORAGE.businessId) || DEFAULT_WORKSPACE.id)
-  const businessName = ref(localStorage.getItem(STORAGE.businessName) || 'My Business')
+  /**
+   * A build pinned to a tenant (VITE_BUSINESS_ID) wins over whatever is in
+   * localStorage. The other way round, a browser that signed in before the
+   * build was pinned keeps its old business id forever and shows that tenant's
+   * — usually empty — inbox, while messages pile up under the real one.
+   */
+  const storedBusinessId = localStorage.getItem(STORAGE.businessId) || ''
+  const pinnedBusinessId = DEFAULT_WORKSPACE.id
+  if (pinnedBusinessId && storedBusinessId !== pinnedBusinessId) {
+    localStorage.setItem(STORAGE.businessId, pinnedBusinessId)
+    localStorage.removeItem(STORAGE.businessName)
+  }
+  const businessId = ref(pinnedBusinessId || storedBusinessId)
+  const businessName = ref(
+    localStorage.getItem(STORAGE.businessName) || DEFAULT_WORKSPACE.name || 'My Business'
+  )
   const agentId = ref(localStorage.getItem(STORAGE.agentId) || 'agent_demo')
   const agentName = ref(localStorage.getItem(STORAGE.agentName) || 'Agent')
   const loadingInbox = ref(false)
@@ -378,6 +399,8 @@ export const useAppStore = defineStore('app', () => {
     persistSession()
     await refreshConversations()
     connectAgentChannel()
+    refreshLeads().finally(connectLeadStream)
+    refreshAppointments()
   }
 
   async function registerBusiness(form) {
@@ -400,6 +423,10 @@ export const useAppStore = defineStore('app', () => {
     authenticated.value = false
     localStorage.setItem(STORAGE.auth, 'false')
     disconnectAgentChannel()
+    disconnectLeadStream()
+    // Do not leave another tenant's leads on screen after a switch.
+    leads.value = []
+    appointments.value = []
   }
 
   function setInboxView(view) {
@@ -458,20 +485,112 @@ export const useAppStore = defineStore('app', () => {
     if (!sent) notify('Not connected to gateway', 'error')
   }
 
-  function updateLeadStatus(id, status) {
-    const lead = leads.value.find((currentLead) => currentLead.id === id)
-    if (lead) lead.status = status
-    notify('Lead status updated (local only — lead-manager not deployed)')
+  async function refreshLeads() {
+    if (!businessId.value) return
+    loadingLeads.value = true
+    try {
+      const result = await gatewayApi.listLeads(businessId.value)
+      leads.value = (result.leads || []).map(mapLead)
+    } catch (error) {
+      notify(error.message || 'Failed to load leads', 'error')
+    } finally {
+      loadingLeads.value = false
+    }
   }
 
-  function addAppointment(item) {
-    appointments.value.unshift({
-      ...item,
-      id: Date.now(),
-      status: 'confirmed',
-      day: 'Upcoming',
-    })
-    notify('Appointment saved locally (appointment service not deployed)')
+  async function loadLead(id) {
+    if (!businessId.value) return null
+    const result = await gatewayApi.getLead(id, businessId.value)
+    return {
+      lead: mapLead(result.lead),
+      activities: (result.activities || []).map(mapLeadActivity),
+    }
+  }
+
+  /**
+   * Live lead feed. Lead Manager publishes per tenant over SSE, so a lead
+   * captured by the chatbot or by routing shows up without a refresh.
+   */
+  function connectLeadStream() {
+    if (!businessId.value || leadStream) return
+    try {
+      leadStream = new EventSource(gatewayApi.leadStreamUrl(businessId.value))
+
+      const upsert = (event) => {
+        const incoming = mapLead(JSON.parse(event.data))
+        const index = leads.value.findIndex((item) => item.id === incoming.id)
+        if (index === -1) leads.value.unshift(incoming)
+        else leads.value[index] = incoming
+      }
+
+      leadStream.addEventListener('lead.created', upsert)
+      leadStream.addEventListener('lead.updated', upsert)
+      // EventSource reconnects on its own; only log so a blip is not a toast storm.
+      leadStream.onerror = () => console.warn('[leads] stream interrupted, retrying')
+    } catch (error) {
+      console.warn('[leads] stream unavailable:', error.message)
+    }
+  }
+
+  function disconnectLeadStream() {
+    leadStream?.close()
+    leadStream = null
+  }
+
+  async function updateLeadStatus(id, status) {
+    const lead = leads.value.find((currentLead) => currentLead.id === id)
+    const previous = lead?.status
+    if (lead) lead.status = status // optimistic; rolled back below on failure
+
+    try {
+      const result = await gatewayApi.updateLead(id, businessId.value, { status })
+      if (lead && result.lead) Object.assign(lead, mapLead(result.lead))
+      notify(`Lead status updated to ${status}`)
+    } catch (error) {
+      if (lead && previous) lead.status = previous
+      // Lead Manager rejects backward moves (converted/lost are terminal), and
+      // that 400 is the message worth showing verbatim.
+      notify(error.message || 'Failed to update lead', 'error')
+    }
+  }
+
+  async function assignLead(id, agentId) {
+    try {
+      const result = await gatewayApi.assignLead(id, businessId.value, agentId)
+      const lead = leads.value.find((currentLead) => currentLead.id === id)
+      if (lead && result.lead) Object.assign(lead, mapLead(result.lead))
+      notify(`Assigned to ${result.assigned_agent_id}`)
+    } catch (error) {
+      notify(error.message || 'Failed to assign lead', 'error')
+    }
+  }
+
+  async function refreshAppointments() {
+    if (!businessId.value) return
+    loadingAppointments.value = true
+    try {
+      const result = await gatewayApi.listAppointments(businessId.value)
+      appointments.value = (result.data || []).map(mapAppointment)
+    } catch (error) {
+      notify(error.message || 'Failed to load appointments', 'error')
+    } finally {
+      loadingAppointments.value = false
+    }
+  }
+
+  async function addAppointment(item) {
+    try {
+      const created = await gatewayApi.createAppointment(
+        toAppointmentPayload(item, businessId.value),
+      )
+      if (created.data) appointments.value.unshift(mapAppointment(created.data))
+      notify('Appointment booked')
+      return created.data
+    } catch (error) {
+      // 409 means the slot went while the form was open — say so, do not swallow it.
+      notify(error.message || 'Failed to book appointment', 'error')
+      throw error
+    }
   }
 
   async function connectTelegram(botToken) {
@@ -484,6 +603,8 @@ export const useAppStore = defineStore('app', () => {
   // Auto-reconnect after page refresh when already signed in
   if (authenticated.value && businessId.value) {
     refreshConversations().finally(() => connectAgentChannel())
+    refreshLeads().finally(connectLeadStream)
+    refreshAppointments()
   }
 
   return {
@@ -502,6 +623,8 @@ export const useAppStore = defineStore('app', () => {
     agentId,
     agentName,
     loadingInbox,
+    loadingLeads,
+    loadingAppointments,
     notify,
     login,
     registerBusiness,
@@ -512,6 +635,10 @@ export const useAppStore = defineStore('app', () => {
     release,
     sendMessage,
     updateLeadStatus,
+    assignLead,
+    refreshLeads,
+    loadLead,
+    refreshAppointments,
     addAppointment,
     refreshConversations,
     loadHistory,

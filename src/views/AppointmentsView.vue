@@ -3,8 +3,13 @@ import { Plus, CalendarDays } from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
 import AppButton from '../components/common/AppButton.vue'
 import AppointmentCard from '../components/appointments/AppointmentCard.vue'
+import { onMounted } from 'vue'
 import { useAppStore } from '../stores/app'
 const store = useAppStore()
+
+onMounted(() => {
+  if (store.appointments.length === 0) store.refreshAppointments()
+})
 
 function getAppointmentDays() {
   return [...new Set(store.appointments.map((appointment) => appointment.day))]

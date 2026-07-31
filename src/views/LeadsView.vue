@@ -1,10 +1,16 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { Search } from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
 import LeadTable from '../components/leads/LeadTable.vue'
 import { useAppStore } from '../stores/app'
 const store = useAppStore()
+
+onMounted(() => {
+  // Refresh even when seeded by the SSE stream, so a reload shows the truth.
+  store.refreshLeads()
+})
+
 const searchText = ref('')
 const selectedStatus = ref('All')
 const selectedChannel = ref('All')
@@ -65,11 +71,25 @@ const filteredLeads = computed(() => {
           </option>
         </select>
       </div>
-      <LeadTable :leads="filteredLeads" />
+      <p v-if="store.loadingLeads && filteredLeads.length === 0" class="muted">
+        Loading leads…
+      </p>
+      <p v-else-if="store.leads.length === 0" class="muted">
+        No leads yet. They appear here as soon as the chatbot or routing
+        qualifies one.
+      </p>
+      <LeadTable v-else :leads="filteredLeads" />
     </div>
   </AppShell>
 </template>
 <style scoped>
+.muted {
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
 .toolbar {
   display: flex;
   gap: 9px;

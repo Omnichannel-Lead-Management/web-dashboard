@@ -61,6 +61,157 @@ export function mapConversation(summary) {
   }
 }
 
+/** Compact age like the inbox uses: 45s, 12m, 3h, 5d. */
+function relativeAge(timestamp) {
+  if (!timestamp) return ''
+  const seconds = Math.max(0, Math.floor((Date.now() - Number(timestamp)) / 1000))
+  if (seconds < 60) return `${seconds}s`
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
+  return `${Math.floor(seconds / 86400)}d`
+}
+
+function formatDate(timestamp) {
+  if (!timestamp) return '—'
+  const date = new Date(Number(timestamp))
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleDateString([], {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+/**
+ * Lead Manager row -> the shape LeadTable/LeadDetailView render.
+ *
+ * Lead Manager is the system of record for leads only; it never sees a customer's
+ * display name or contact details, so those stay placeholders rather than being
+ * invented here. `messenger_id` is the identity an agent can actually act on.
+ */
+export function mapLead(lead) {
+  const name = lead.display_name || lead.messenger_id || 'Unknown'
+
+  return {
+    id: lead.id,
+    business_id: lead.business_id,
+    messenger_id: lead.messenger_id,
+    platform: lead.platform,
+    name,
+    initials: initialsFrom(name),
+    channel: channelLabel(lead.platform),
+    status: lead.status,
+    score: lead.score ?? 0,
+    interest: lead.service_interest || 'Not specified',
+    agent: lead.assigned_agent_id || 'Unassigned',
+    assigned_agent_id: lead.assigned_agent_id || null,
+    age: relativeAge(lead.created_at),
+    created: formatDate(lead.created_at),
+    notes: lead.notes || 'No notes yet.',
+    tags: Array.isArray(lead.tags) ? lead.tags : [],
+    source: lead.source || '',
+    budget_range: lead.budget_range || '',
+    email: 'Not provided',
+    phone: 'Not provided',
+    location: '—',
+  }
+}
+
+/** Activity trail entry from GET /api/leads/:id. */
+export function mapLeadActivity(activity) {
+  return {
+    id: activity.id,
+    type: activity.activity_type,
+    description: activity.description,
+    by: activity.performed_by || 'system',
+    at: formatDate(activity.created_at),
+    age: relativeAge(activity.created_at),
+  }
+}
+
+/**
+ * Appointment row -> the shape AppointmentsView renders. The service stores
+ * start_time/end_time as ISO strings; the UI wants them split into a day label
+ * and a 12-hour clock.
+ */
+export function mapAppointment(appointment) {
+  // The Appointment service serialises camelCase (startTime/customerName), unlike
+  // Lead Manager's snake_case rows. Accept both so this does not silently render
+  // "Unknown / Unscheduled" if either side changes its casing.
+  const startTime = appointment.startTime ?? appointment.start_time
+  const endTime = appointment.endTime ?? appointment.end_time
+  const start = new Date(startTime)
+  const valid = !Number.isNaN(start.getTime())
+  const today = new Date()
+  const isToday = valid && start.toDateString() === today.toDateString()
+
+  const dayLabel = valid
+    ? start.toLocaleDateString([], {
+        weekday: 'long',
+        day: '2-digit',
+        month: 'short',
+      })
+    : 'Unscheduled'
+
+  const hours = valid ? start.getHours() : 0
+  const minutes = valid ? String(start.getMinutes()).padStart(2, '0') : '00'
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12
+
+  return {
+    id: appointment.id,
+    date: valid ? start.toISOString().slice(0, 10) : '',
+    day: isToday ? `Today · ${dayLabel}` : dayLabel,
+    time: `${hour12}:${minutes}`,
+    ampm: hours >= 12 ? 'PM' : 'AM',
+    customer: appointment.customerName || appointment.customer_name || 'Unknown',
+    service: appointment.service || '—',
+    duration: durationLabel(startTime, endTime),
+    status: appointment.status || 'pending',
+    staff: appointment.staff || '—',
+    notes: appointment.notes || '',
+  }
+}
+
+/**
+ * AppointmentForm shape -> the Appointment service's create contract.
+ *
+ * The form collects a date, a 12-hour time and a "60 min" duration string; the
+ * service wants businessId/customerName/startTime/endTime as ISO instants. Doing
+ * the conversion here keeps the form free of API concerns — and keeps the two
+ * from drifting silently, since a mismatch is a 400 rather than a wrong booking.
+ */
+export function toAppointmentPayload(form, businessId) {
+  const [rawHour, rawMinute = '0'] = String(form.time || '').split(':')
+  let hour = Number(rawHour)
+  if (form.ampm === 'PM' && hour < 12) hour += 12
+  if (form.ampm === 'AM' && hour === 12) hour = 0
+
+  const start = new Date(`${form.date}T00:00:00`)
+  start.setHours(hour, Number(rawMinute) || 0, 0, 0)
+
+  const minutes = Number.parseInt(String(form.duration), 10)
+  const end = new Date(start.getTime() + (Number.isFinite(minutes) ? minutes : 60) * 60000)
+
+  return {
+    businessId,
+    customerName: form.customer,
+    service: form.service,
+    startTime: start.toISOString(),
+    endTime: end.toISOString(),
+    notes: form.notes || undefined,
+  }
+}
+
+function durationLabel(startTime, endTime) {
+  const start = new Date(startTime)
+  const end = new Date(endTime)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return '—'
+  const minutes = Math.round((end - start) / 60000)
+  return minutes >= 60 && minutes % 60 === 0
+    ? `${minutes / 60} hr`
+    : `${minutes} min`
+}
+
 export function mapHistoryMessage(entry) {
   const sender =
     entry.from === 'user' ? 'customer' : entry.from === 'agent' ? 'agent' : 'bot'

@@ -1,6 +1,70 @@
 <script setup>
+import { computed, onMounted } from 'vue'
 import AppShell from '../components/layout/AppShell.vue'
-import { analytics } from '../data/mockData'
+import { useAppStore } from '../stores/app'
+
+const store = useAppStore()
+
+onMounted(() => {
+  if (store.leads.length === 0) store.refreshLeads()
+  if (store.appointments.length === 0) store.refreshAppointments()
+})
+
+const STATUSES = ['new', 'contacted', 'qualified', 'converted', 'lost']
+
+function countBy(items, pick) {
+  return items.reduce((totals, item) => {
+    const key = pick(item)
+    if (key) totals[key] = (totals[key] || 0) + 1
+    return totals
+  }, {})
+}
+
+/**
+ * Derived from whatever the tenant actually has. There is no time-series store
+ * yet, so these are totals rather than 30-day deltas — the third value is a
+ * supporting fact, not a fabricated trend.
+ */
+const analytics = computed(() => {
+  const leads = store.leads
+  const converted = leads.filter((lead) => lead.status === 'converted').length
+  const conversionRate = leads.length
+    ? `${((converted / leads.length) * 100).toFixed(1)}%`
+    : '0%'
+  const averageScore = leads.length
+    ? Math.round(leads.reduce((sum, lead) => sum + (lead.score || 0), 0) / leads.length)
+    : 0
+  const hot = leads.filter((lead) => (lead.score || 0) >= 70).length
+  const unassigned = leads.filter((lead) => lead.agent === 'Unassigned').length
+
+  const byStatus = countBy(leads, (lead) => lead.status)
+  const byChannel = countBy(leads, (lead) => lead.channel)
+  const channelTotal = Object.values(byChannel).reduce((a, b) => a + b, 0)
+
+  return {
+    metrics: [
+      ['Conversations', String(store.conversations.length), `${store.conversations.filter((c) => c.escalated).length} escalated`],
+      ['Leads', String(leads.length), `${hot} scoring 70+`],
+      ['Conversion rate', conversionRate, `${converted} converted`],
+      ['Appointments', String(store.appointments.length), `${unassigned} leads unassigned`],
+    ],
+    statuses: STATUSES.map((status) => [
+      status[0].toUpperCase() + status.slice(1),
+      byStatus[status] || 0,
+    ]),
+    platforms: Object.entries(byChannel).map(([channel, count]) => [
+      channel,
+      channelTotal ? Math.round((count / channelTotal) * 100) : 0,
+    ]),
+    averageScore,
+    empty: leads.length === 0,
+  }
+})
+
+/** Bars are relative to the biggest bucket so a small tenant still reads clearly. */
+const maxStatus = computed(() =>
+  Math.max(1, ...analytics.value.statuses.map(([, count]) => count)),
+)
 </script>
 <template>
   <AppShell>
@@ -8,13 +72,17 @@ import { analytics } from '../data/mockData'
       <div class="page-title">
         <div>
           <h1>Analytics</h1>
-          <p>Elegant Salon · last 30 days</p>
+          <p>{{ store.businessName }} · all time · avg score {{ analytics.averageScore }}</p>
         </div>
         <select aria-label="Analytics period">
           <option>Last 30 days</option>
           <option>Last 7 days</option>
         </select>
       </div>
+      <p v-if="analytics.empty" class="empty">
+        No leads captured yet for this business. They appear here as soon as the
+        chatbot or routing qualifies one.
+      </p>
       <section class="metrics">
         <article v-for="m in analytics.metrics" :key="m[0]" class="card">
           <span>{{ m[0] }}</span>
@@ -27,7 +95,7 @@ import { analytics } from '../data/mockData'
           <h2>Leads by status</h2>
           <div v-for="s in analytics.statuses" :key="s[0]" class="bar">
             <span>{{ s[0] }}</span>
-            <i><b :style="{ width: s[1] * 2 + '%' }" /></i>
+            <i><b :style="{ width: (s[1] / maxStatus) * 100 + '%' }" /></i>
             <strong>{{ s[1] }}</strong>
           </div>
         </article>
@@ -51,6 +119,13 @@ import { analytics } from '../data/mockData'
   </AppShell>
 </template>
 <style scoped>
+.empty {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
+  color: var(--muted);
+}
 .page-title select {
   width: 150px;
 }
