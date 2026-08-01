@@ -12,13 +12,17 @@ defineProps({
     type: Boolean,
     default: false,
   },
+  disabled: {
+    type: Boolean,
+    default: false,
+  },
 })
 </script>
 <template>
   <button
     class="btn"
     :class="[`btn--${variant}`, `btn--${size}`]"
-    :disabled="loading"
+    :disabled="loading || disabled"
   >
     <slot>{{ loading ? 'Please wait…' : '' }}</slot>
   </button>

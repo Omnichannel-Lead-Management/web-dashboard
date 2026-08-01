@@ -11,6 +11,7 @@ import {
 } from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
 import SettingsNavigation from '../components/settings/SettingsNavigation.vue'
+import FaqManager from '../components/settings/FaqManager.vue'
 import AppButton from '../components/common/AppButton.vue'
 import AppBadge from '../components/common/AppBadge.vue'
 import { gatewayApi } from '../services/gatewayApi'
@@ -160,13 +161,21 @@ async function connectTelegramBot() {
             <h2>Telegram setup</h2>
             <p class="intro">
               Connect a BotFather token. Gateway public URL:
-              <code>{{ store.businessId ? `business ${store.businessId}` : 'create a business first' }}</code>
+              <code>
+                {{
+                  store.businessId
+                    ? `business ${store.businessId}`
+                    : 'create a business first'
+                }}
+              </code>
             </p>
             <div class="status">
               <Check :size="20" />
               <div>
                 <b>{{ store.businessName || 'Your business' }}</b>
-                <small>Webhook target uses PUBLIC_BASE_URL on the gateway</small>
+                <small>
+                  Webhook target uses PUBLIC_BASE_URL on the gateway
+                </small>
               </div>
             </div>
             <h3>Connect bot</h3>
@@ -247,6 +256,9 @@ I’ll connect you with a member of our team who can help.</textarea>
             <AppButton @click="showSavedMessage('Chatbot messages saved')">
               Save changes
             </AppButton>
+          </template>
+          <template v-else-if="activeSection === 'faqs'">
+            <FaqManager :sector="business?.sector || businessProfile.sector" />
           </template>
           <template v-else>
             <h2>Business profile</h2>

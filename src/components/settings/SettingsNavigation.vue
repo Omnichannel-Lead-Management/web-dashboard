@@ -5,6 +5,7 @@ import {
   MessageCircleMore,
   Bot,
   Building2,
+  BookOpenText,
 } from 'lucide-vue-next'
 
 defineProps({
@@ -21,6 +22,7 @@ const items = [
   ['telegram', 'Telegram', TentTree],
   ['whatsapp', 'WhatsApp', MessageCircleMore],
   ['chatbot', 'Chatbot settings', Bot],
+  ['faqs', 'FAQs & answers', BookOpenText],
   ['profile', 'Business profile', Building2],
 ]
 </script>

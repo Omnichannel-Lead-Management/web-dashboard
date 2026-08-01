@@ -8,6 +8,8 @@ import {
   mapLead,
   mapLeadActivity,
   mapAppointment,
+  mapFaq,
+  toFaqPayload,
   toAppointmentPayload,
   conversationId,
   parseConversationId,
@@ -43,12 +45,16 @@ const DEFAULT_WORKSPACE = {
 
 export const useAppStore = defineStore('app', () => {
   const authenticated = ref(localStorage.getItem(STORAGE.auth) === 'true')
-  const inboxView = ref(localStorage.getItem(STORAGE.inboxView) || 'conversation')
+  const inboxView = ref(
+    localStorage.getItem(STORAGE.inboxView) || 'conversation',
+  )
   const chatbotEnabled = ref(localStorage.getItem(STORAGE.chatbot) !== 'false')
   const conversations = ref([])
   const messages = ref({})
   const leads = ref([])
   const appointments = ref([])
+  const faqs = ref([])
+  const loadingFaqs = ref(false)
   const loadingLeads = ref(false)
   const loadingAppointments = ref(false)
   /** EventSource for the live lead feed; closed on sign-out. */
@@ -70,7 +76,9 @@ export const useAppStore = defineStore('app', () => {
   }
   const businessId = ref(pinnedBusinessId || storedBusinessId)
   const businessName = ref(
-    localStorage.getItem(STORAGE.businessName) || DEFAULT_WORKSPACE.name || 'My Business'
+    localStorage.getItem(STORAGE.businessName) ||
+      DEFAULT_WORKSPACE.name ||
+      'My Business',
   )
   const agentId = ref(localStorage.getItem(STORAGE.agentId) || 'agent_demo')
   const agentName = ref(localStorage.getItem(STORAGE.agentName) || 'Agent')
@@ -89,10 +97,13 @@ export const useAppStore = defineStore('app', () => {
 
   function persistSession() {
     localStorage.setItem(STORAGE.auth, authenticated.value ? 'true' : 'false')
-    if (businessId.value) localStorage.setItem(STORAGE.businessId, businessId.value)
-    if (businessName.value) localStorage.setItem(STORAGE.businessName, businessName.value)
+    if (businessId.value)
+      localStorage.setItem(STORAGE.businessId, businessId.value)
+    if (businessName.value)
+      localStorage.setItem(STORAGE.businessName, businessName.value)
     if (agentId.value) localStorage.setItem(STORAGE.agentId, agentId.value)
-    if (agentName.value) localStorage.setItem(STORAGE.agentName, agentName.value)
+    if (agentName.value)
+      localStorage.setItem(STORAGE.agentName, agentName.value)
   }
 
   function upsertConversation(summaryOrConversation) {
@@ -113,7 +124,9 @@ export const useAppStore = defineStore('app', () => {
 
   function appendMessage(conversationKey, message) {
     messages.value[conversationKey] ||= []
-    const exists = messages.value[conversationKey].some((item) => item.id === message.id)
+    const exists = messages.value[conversationKey].some(
+      (item) => item.id === message.id,
+    )
     if (!exists) {
       messages.value[conversationKey].push(message)
     }
@@ -212,7 +225,11 @@ export const useAppStore = defineStore('app', () => {
           escalation_status: chat.escalation_status,
           claimed_by_agent_id: chat.claimed_by_agent_id,
           last_message: chat.escalation_summary
-            ? { text: chat.escalation_summary, is_from_user: true, created_at: chat.updated_at }
+            ? {
+                text: chat.escalation_summary,
+                is_from_user: true,
+                created_at: chat.updated_at,
+              }
             : null,
           updated_at: chat.updated_at,
         })
@@ -266,7 +283,8 @@ export const useAppStore = defineStore('app', () => {
         messenger_id: event.messenger_id,
         platform: event.platform,
         display_name:
-          conversations.value.find((item) => item.id === id)?.name || event.messenger_id,
+          conversations.value.find((item) => item.id === id)?.name ||
+          event.messenger_id,
         is_escalated: true,
         escalation_status: 'claimed',
         claimed_by_agent_id: event.from === 'agent' ? event.agent_id : null,
@@ -281,7 +299,12 @@ export const useAppStore = defineStore('app', () => {
         id,
         mapHistoryMessage({
           id: `${event.timestamp}-${event.from}-${event.text?.slice(0, 12)}`,
-          from: event.from === 'user' ? 'user' : event.from === 'agent' ? 'agent' : 'ai',
+          from:
+            event.from === 'user'
+              ? 'user'
+              : event.from === 'agent'
+                ? 'agent'
+                : 'ai',
           text: event.text,
           timestamp: event.timestamp,
         }),
@@ -374,7 +397,9 @@ export const useAppStore = defineStore('app', () => {
   } = {}) {
     agentName.value = agent_name
     agentId.value =
-      agent_id || localStorage.getItem(STORAGE.agentId) || `agent_${Date.now().toString(36)}`
+      agent_id ||
+      localStorage.getItem(STORAGE.agentId) ||
+      `agent_${Date.now().toString(36)}`
 
     if (businessId.value) {
       try {
@@ -387,7 +412,11 @@ export const useAppStore = defineStore('app', () => {
       }
     }
 
-    const created = await gatewayApi.createBusiness({ name, sector, owner_email })
+    const created = await gatewayApi.createBusiness({
+      name,
+      sector,
+      owner_email,
+    })
     businessId.value = created.business.id
     businessName.value = created.business.name
     persistSession()
@@ -468,7 +497,10 @@ export const useAppStore = defineStore('app', () => {
       id: Date.now(),
       sender: 'agent',
       text,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      time: new Date().toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
     }
     appendMessage(id, optimistic)
 
@@ -527,7 +559,8 @@ export const useAppStore = defineStore('app', () => {
       leadStream.addEventListener('lead.created', upsert)
       leadStream.addEventListener('lead.updated', upsert)
       // EventSource reconnects on its own; only log so a blip is not a toast storm.
-      leadStream.onerror = () => console.warn('[leads] stream interrupted, retrying')
+      leadStream.onerror = () =>
+        console.warn('[leads] stream interrupted, retrying')
     } catch (error) {
       console.warn('[leads] stream unavailable:', error.message)
     }
@@ -544,7 +577,9 @@ export const useAppStore = defineStore('app', () => {
     if (lead) lead.status = status // optimistic; rolled back below on failure
 
     try {
-      const result = await gatewayApi.updateLead(id, businessId.value, { status })
+      const result = await gatewayApi.updateLead(id, businessId.value, {
+        status,
+      })
       if (lead && result.lead) Object.assign(lead, mapLead(result.lead))
       notify(`Lead status updated to ${status}`)
     } catch (error) {
@@ -597,8 +632,54 @@ export const useAppStore = defineStore('app', () => {
   async function connectTelegram(botToken) {
     if (!businessId.value) throw new Error('No business selected')
     const result = await gatewayApi.connectTelegram(businessId.value, botToken)
-    notify(`Telegram connected${result.bot_username ? ` as @${result.bot_username}` : ''}`)
+    notify(
+      `Telegram connected${result.bot_username ? ` as @${result.bot_username}` : ''}`,
+    )
     return result
+  }
+
+  async function refreshFaqs() {
+    if (!businessId.value) throw new Error('No business selected')
+    loadingFaqs.value = true
+    try {
+      const result = await gatewayApi.listFaqs(businessId.value)
+      faqs.value = (result?.faqs || []).map(mapFaq)
+      return faqs.value
+    } finally {
+      loadingFaqs.value = false
+    }
+  }
+
+  async function createFaq(faq) {
+    if (!businessId.value) throw new Error('No business selected')
+    const result = await gatewayApi.createFaq(
+      businessId.value,
+      toFaqPayload(faq),
+    )
+    if (!result?.faq?.id) {
+      throw new Error('Gateway returned an invalid FAQ response')
+    }
+    const created = mapFaq(result.faq)
+    faqs.value.unshift(created)
+    return created
+  }
+
+  async function updateFaq(faqId, changes) {
+    if (!businessId.value) throw new Error('No business selected')
+    const result = await gatewayApi.updateFaq(faqId, toFaqPayload(changes))
+    if (!result?.faq?.id) {
+      throw new Error('Gateway returned an invalid FAQ response')
+    }
+    const updated = mapFaq(result.faq)
+    const index = faqs.value.findIndex((faq) => faq.id === faqId)
+    if (index >= 0) faqs.value[index] = updated
+    return updated
+  }
+
+  async function deleteFaq(faqId) {
+    if (!businessId.value) throw new Error('No business selected')
+    await gatewayApi.deleteFaq(faqId)
+    faqs.value = faqs.value.filter((faq) => faq.id !== faqId)
   }
 
   // Auto-reconnect after page refresh when already signed in
@@ -616,6 +697,7 @@ export const useAppStore = defineStore('app', () => {
     messages,
     leads,
     appointments,
+    faqs,
     selectedConversationId,
     toast,
     connectionStatus,
@@ -626,6 +708,7 @@ export const useAppStore = defineStore('app', () => {
     loadingInbox,
     loadingLeads,
     loadingAppointments,
+    loadingFaqs,
     notify,
     login,
     registerBusiness,
@@ -644,6 +727,10 @@ export const useAppStore = defineStore('app', () => {
     refreshConversations,
     loadHistory,
     connectTelegram,
+    refreshFaqs,
+    createFaq,
+    updateFaq,
+    deleteFaq,
     connectAgentChannel,
   }
 })
