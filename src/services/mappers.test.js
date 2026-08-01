@@ -8,10 +8,71 @@ import {
   mapAppointment,
   toAppointmentPayload,
   parseConversationId,
+  mapFaq,
+  toFaqPayload,
 } from './mappers.js'
 import { gatewayWsUrl } from '../config.js'
 
 describe('mappers unit', () => {
+  test('mapFaq normalizes the chatbot-builder record format', () => {
+    expect(
+      mapFaq({
+        id: 27,
+        business_id: 'biz_1',
+        question: 'When are you open?',
+        answer: 'Monday to Saturday.',
+        keywords: '["hours","opening times"]',
+        enabled: 1,
+        created_at: 1754042400,
+        updated_at: 1754046000000,
+      }),
+    ).toEqual({
+      id: 27,
+      businessId: 'biz_1',
+      question: 'When are you open?',
+      answer: 'Monday to Saturday.',
+      keywords: ['hours', 'opening times'],
+      enabled: true,
+      createdAt: 1754042400000,
+      updatedAt: 1754046000000,
+    })
+  })
+
+  test('mapFaq accepts arrays and comma-separated keyword fallbacks', () => {
+    expect(mapFaq({ keywords: ['hours', ' booking '] }).keywords).toEqual([
+      'hours',
+      'booking',
+    ])
+    expect(mapFaq({ keywords: 'hours, booking' }).keywords).toEqual([
+      'hours',
+      'booking',
+    ])
+    expect(mapFaq({ keywords: '{bad json' }).keywords).toEqual(['{bad json'])
+  })
+
+  test('mapFaq coerces chatbot-builder boolean representations', () => {
+    expect(mapFaq({ enabled: 0 }).enabled).toBe(false)
+    expect(mapFaq({ enabled: 1 }).enabled).toBe(true)
+    expect(mapFaq({ enabled: 'false' }).enabled).toBe(false)
+    expect(mapFaq({ enabled: 'true' }).enabled).toBe(true)
+  })
+
+  test('toFaqPayload trims values and removes duplicate or blank keywords', () => {
+    expect(
+      toFaqPayload({
+        question: '  Where are you? ',
+        answer: ' Colombo.  ',
+        keywords: [' location ', '', 'location'],
+        enabled: true,
+      }),
+    ).toEqual({
+      question: 'Where are you?',
+      answer: 'Colombo.',
+      keywords: ['location'],
+      enabled: true,
+    })
+  })
+
   test('conversationId and parseConversationId round-trip', () => {
     const id = conversationId('telegram', '12345')
     expect(id).toBe('telegram:12345')
@@ -29,7 +90,11 @@ describe('mappers unit', () => {
       is_escalated: true,
       escalation_status: 'queued',
       claimed_by_agent_id: null,
-      last_message: { text: 'Need help', is_from_user: true, created_at: '2026-07-25T10:00:00Z' },
+      last_message: {
+        text: 'Need help',
+        is_from_user: true,
+        created_at: '2026-07-25T10:00:00Z',
+      },
       updated_at: '2026-07-25T10:00:00Z',
     })
     expect(mapped.id).toBe('telegram:99')
@@ -42,22 +107,41 @@ describe('mappers unit', () => {
   })
 
   test('mapHistoryMessage maps sender roles', () => {
-    expect(mapHistoryMessage({ id: 1, from: 'user', text: 'hi', timestamp: '2026-07-25T10:00:00Z' }).sender).toBe(
-      'customer',
-    )
-    expect(mapHistoryMessage({ id: 2, from: 'agent', text: 'hello', timestamp: '2026-07-25T10:00:00Z' }).sender).toBe(
-      'agent',
-    )
-    expect(mapHistoryMessage({ id: 3, from: 'ai', text: 'bot', timestamp: '2026-07-25T10:00:00Z' }).sender).toBe(
-      'bot',
-    )
+    expect(
+      mapHistoryMessage({
+        id: 1,
+        from: 'user',
+        text: 'hi',
+        timestamp: '2026-07-25T10:00:00Z',
+      }).sender,
+    ).toBe('customer')
+    expect(
+      mapHistoryMessage({
+        id: 2,
+        from: 'agent',
+        text: 'hello',
+        timestamp: '2026-07-25T10:00:00Z',
+      }).sender,
+    ).toBe('agent')
+    expect(
+      mapHistoryMessage({
+        id: 3,
+        from: 'ai',
+        text: 'bot',
+        timestamp: '2026-07-25T10:00:00Z',
+      }).sender,
+    ).toBe('bot')
   })
 })
 
 describe('config unit', () => {
   test('gatewayWsUrl switches protocol and path', () => {
-    expect(gatewayWsUrl('/ws/agents', 'http://example.com:3000')).toBe('ws://example.com:3000/ws/agents')
-    expect(gatewayWsUrl('/ws/agents', 'https://cache.us.kg')).toBe('wss://cache.us.kg/ws/agents')
+    expect(gatewayWsUrl('/ws/agents', 'http://example.com:3000')).toBe(
+      'ws://example.com:3000/ws/agents',
+    )
+    expect(gatewayWsUrl('/ws/agents', 'https://cache.us.kg')).toBe(
+      'wss://cache.us.kg/ws/agents',
+    )
   })
 })
 
@@ -88,7 +172,11 @@ describe('mapLead unit', () => {
   })
 
   test('unassigned and missing interest read as placeholders, not blanks', () => {
-    const lead = mapLead({ ...row, assigned_agent_id: null, service_interest: null })
+    const lead = mapLead({
+      ...row,
+      assigned_agent_id: null,
+      service_interest: null,
+    })
     expect(lead.agent).toBe('Unassigned')
     expect(lead.interest).toBe('Not specified')
   })
@@ -108,7 +196,9 @@ describe('mapLead unit', () => {
       created_at: Date.now() - 90 * 1000,
     })
     expect(activity.type).toBe('status_changed')
-    expect(activity.description).toBe("Status changed from 'new' to 'contacted'")
+    expect(activity.description).toBe(
+      "Status changed from 'new' to 'contacted'",
+    )
     expect(activity.by).toBe('agent_2')
     expect(activity.age).toBe('1m')
   })
@@ -150,7 +240,11 @@ describe('mapAppointment unit', () => {
   })
 
   test('a bad start_time degrades instead of throwing', () => {
-    const mapped = mapAppointment({ id: 'x', start_time: 'nope', end_time: 'nope' })
+    const mapped = mapAppointment({
+      id: 'x',
+      start_time: 'nope',
+      end_time: 'nope',
+    })
     expect(mapped.day).toBe('Unscheduled')
     expect(mapped.duration).toBe('—')
   })
@@ -183,7 +277,14 @@ describe('toAppointmentPayload unit', () => {
 
   test('12 AM is midnight, not noon', () => {
     const payload = toAppointmentPayload(
-      { customer: 'X', service: 'S', date: '2026-08-04', time: '12:00', ampm: 'AM', duration: '60 min' },
+      {
+        customer: 'X',
+        service: 'S',
+        date: '2026-08-04',
+        time: '12:00',
+        ampm: 'AM',
+        duration: '60 min',
+      },
       'biz_1',
     )
     expect(new Date(payload.startTime).getHours()).toBe(0)
@@ -191,7 +292,14 @@ describe('toAppointmentPayload unit', () => {
 
   test('12 PM stays noon', () => {
     const payload = toAppointmentPayload(
-      { customer: 'X', service: 'S', date: '2026-08-04', time: '12:00', ampm: 'PM', duration: '60 min' },
+      {
+        customer: 'X',
+        service: 'S',
+        date: '2026-08-04',
+        time: '12:00',
+        ampm: 'PM',
+        duration: '60 min',
+      },
       'biz_1',
     )
     expect(new Date(payload.startTime).getHours()).toBe(12)
@@ -212,16 +320,24 @@ describe('mapHistoryMessage media kind', () => {
   })
 
   test('WhatsApp image/audio types map to the same two badges', () => {
-    expect(mapHistoryMessage({ from: 'user', metadata: { type: 'image' } }).kind).toBe('photo')
-    expect(mapHistoryMessage({ from: 'user', metadata: { type: 'audio' } }).kind).toBe('voice')
+    expect(
+      mapHistoryMessage({ from: 'user', metadata: { type: 'image' } }).kind,
+    ).toBe('photo')
+    expect(
+      mapHistoryMessage({ from: 'user', metadata: { type: 'audio' } }).kind,
+    ).toBe('voice')
   })
 
   test('typed messages carry no badge', () => {
-    expect(mapHistoryMessage({ from: 'user', metadata: '{"type":"text"}' }).kind).toBeNull()
+    expect(
+      mapHistoryMessage({ from: 'user', metadata: '{"type":"text"}' }).kind,
+    ).toBeNull()
     expect(mapHistoryMessage({ from: 'user' }).kind).toBeNull()
   })
 
   test('malformed metadata does not throw', () => {
-    expect(mapHistoryMessage({ from: 'user', metadata: 'not json' }).kind).toBeNull()
+    expect(
+      mapHistoryMessage({ from: 'user', metadata: 'not json' }).kind,
+    ).toBeNull()
   })
 })

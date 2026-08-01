@@ -37,13 +37,50 @@ export const gatewayApi = {
   },
 
   listConversations(businessId) {
-    return request(`/api/businesses/${encodeURIComponent(businessId)}/conversations`)
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/conversations`,
+    )
   },
 
   connectTelegram(businessId, botToken) {
-    return request(`/api/businesses/${encodeURIComponent(businessId)}/channels/telegram`, {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/channels/telegram`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ bot_token: botToken }),
+      },
+    )
+  },
+
+  // ── FAQs (business-scoped; see BACKEND_REQUIREMENTS.md for the contract) ──
+  listFaqs(businessId) {
+    return request(`/api/businesses/${encodeURIComponent(businessId)}/faqs`)
+  },
+
+  createFaq(businessId, faq) {
+    return request(`/api/businesses/${encodeURIComponent(businessId)}/faqs`, {
       method: 'POST',
-      body: JSON.stringify({ bot_token: botToken }),
+      body: JSON.stringify(faq),
+    })
+  },
+
+  replaceFaqs(businessId, items) {
+    return request(`/api/businesses/${encodeURIComponent(businessId)}/faqs`, {
+      method: 'PUT',
+      body: JSON.stringify({ items }),
+    })
+  },
+
+  updateFaq(faqId, changes) {
+    return request(`/api/faqs/${encodeURIComponent(faqId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    })
+  },
+
+  deleteFaq(faqId) {
+    return request(`/api/faqs/${encodeURIComponent(faqId)}`, {
+      method: 'DELETE',
     })
   },
 

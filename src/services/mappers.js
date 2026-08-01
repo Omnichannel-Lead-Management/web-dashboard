@@ -20,6 +20,68 @@ function channelLabel(platform = '') {
   return platform || 'Channel'
 }
 
+function faqKeywords(value) {
+  if (Array.isArray(value)) return value
+  if (typeof value !== 'string') return []
+
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed
+  } catch {
+    // Older records used comma-separated text instead of a JSON array.
+  }
+
+  return value.split(',')
+}
+
+function faqBoolean(value) {
+  if (value === true || value === 1 || value === '1') return true
+  if (value === false || value === 0 || value === '0') return false
+  if (typeof value === 'string') return value.toLowerCase() === 'true'
+  return Boolean(value)
+}
+
+function faqTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null
+  const numeric = Number(value)
+  if (!Number.isInteger(numeric)) return null
+  return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
+}
+
+/** chatbot-builder FAQ record -> the stable shape used by settings. */
+export function mapFaq(faq = {}) {
+  const keywords = faqKeywords(faq.keywords ?? faq.keyword_list)
+    .map((keyword) => String(keyword).trim())
+    .filter(Boolean)
+
+  return {
+    id: faq.id,
+    businessId: faq.business_id ?? faq.businessId ?? '',
+    question: String(faq.question ?? ''),
+    answer: String(faq.answer ?? ''),
+    keywords,
+    enabled: faqBoolean(faq.enabled),
+    createdAt: faqTimestamp(faq.created_at ?? faq.createdAt),
+    updatedAt: faqTimestamp(faq.updated_at ?? faq.updatedAt),
+  }
+}
+
+/** Form FAQ -> documented gateway request contract. */
+export function toFaqPayload(faq) {
+  return {
+    question: String(faq.question ?? '').trim(),
+    answer: String(faq.answer ?? '').trim(),
+    keywords: [
+      ...new Set(
+        (faq.keywords || [])
+          .map((keyword) => String(keyword).trim())
+          .filter(Boolean),
+      ),
+    ],
+    enabled: faq.enabled !== false,
+  }
+}
+
 export function conversationId(platform, messengerId) {
   return `${platform}:${messengerId}`
 }
@@ -36,7 +98,8 @@ export function parseConversationId(id) {
 export function mapConversation(summary) {
   const id = conversationId(summary.platform, summary.messenger_id)
   const claimed =
-    summary.escalation_status === 'claimed' || Boolean(summary.claimed_by_agent_id)
+    summary.escalation_status === 'claimed' ||
+    Boolean(summary.claimed_by_agent_id)
 
   return {
     id,
@@ -48,7 +111,11 @@ export function mapConversation(summary) {
     channel: channelLabel(summary.platform),
     time: formatTime(summary.updated_at || summary.last_message?.created_at),
     preview: summary.last_message?.text || 'No messages yet',
-    status: summary.is_escalated ? (claimed ? 'contacted' : 'qualified') : 'new',
+    status: summary.is_escalated
+      ? claimed
+        ? 'contacted'
+        : 'qualified'
+      : 'new',
     score: summary.is_escalated ? 60 : 20,
     unread: Boolean(summary.is_escalated && !claimed),
     escalated: Boolean(summary.is_escalated),
@@ -64,7 +131,10 @@ export function mapConversation(summary) {
 /** Compact age like the inbox uses: 45s, 12m, 3h, 5d. */
 function relativeAge(timestamp) {
   if (!timestamp) return ''
-  const seconds = Math.max(0, Math.floor((Date.now() - Number(timestamp)) / 1000))
+  const seconds = Math.max(
+    0,
+    Math.floor((Date.now() - Number(timestamp)) / 1000),
+  )
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
@@ -163,7 +233,8 @@ export function mapAppointment(appointment) {
     day: isToday ? `Today · ${dayLabel}` : dayLabel,
     time: `${hour12}:${minutes}`,
     ampm: hours >= 12 ? 'PM' : 'AM',
-    customer: appointment.customerName || appointment.customer_name || 'Unknown',
+    customer:
+      appointment.customerName || appointment.customer_name || 'Unknown',
     service: appointment.service || '—',
     duration: durationLabel(startTime, endTime),
     status: appointment.status || 'pending',
@@ -190,7 +261,9 @@ export function toAppointmentPayload(form, businessId) {
   start.setHours(hour, Number(rawMinute) || 0, 0, 0)
 
   const minutes = Number.parseInt(String(form.duration), 10)
-  const end = new Date(start.getTime() + (Number.isFinite(minutes) ? minutes : 60) * 60000)
+  const end = new Date(
+    start.getTime() + (Number.isFinite(minutes) ? minutes : 60) * 60000,
+  )
 
   return {
     businessId,
@@ -230,12 +303,20 @@ function mediaKind(metadata) {
         })()
       : metadata
   const type = parsed?.type
-  return type === 'voice' || type === 'audio' ? 'voice' : type === 'photo' || type === 'image' ? 'photo' : null
+  return type === 'voice' || type === 'audio'
+    ? 'voice'
+    : type === 'photo' || type === 'image'
+      ? 'photo'
+      : null
 }
 
 export function mapHistoryMessage(entry) {
   const sender =
-    entry.from === 'user' ? 'customer' : entry.from === 'agent' ? 'agent' : 'bot'
+    entry.from === 'user'
+      ? 'customer'
+      : entry.from === 'agent'
+        ? 'agent'
+        : 'bot'
 
   return {
     id: entry.id ?? `${entry.timestamp}-${entry.from}`,
