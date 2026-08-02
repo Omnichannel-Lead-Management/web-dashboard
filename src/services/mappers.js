@@ -126,6 +126,23 @@ function whatsappBoolean(value, fallback = false) {
   return fallback
 }
 
+function telegramSource(response) {
+  return response?.data ?? response?.result ?? response
+}
+
+/** Verified Telegram connect response -> secret-free settings state. */
+export function mapTelegramConnection(response = {}) {
+  const source = telegramSource(response) || {}
+  const success = response?.success ?? source.success
+  if (success !== true || source.ok !== true) {
+    throw new Error('Gateway returned an invalid Telegram connection response')
+  }
+  return {
+    connected: true,
+    botUsername: String(source.bot_username ?? '').trim(),
+  }
+}
+
 function whatsappSource(response) {
   return response?.data ?? response?.result ?? response
 }

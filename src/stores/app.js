@@ -919,15 +919,6 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
-  async function connectTelegram(botToken) {
-    if (!businessId.value) throw new Error('No business selected')
-    const result = await gatewayApi.connectTelegram(businessId.value, botToken)
-    notify(
-      `Telegram connected${result.bot_username ? ` as @${result.bot_username}` : ''}`,
-    )
-    return result
-  }
-
   async function refreshBusiness() {
     if (!authenticated.value || !businessId.value) {
       throw new Error('No active business session')
@@ -1337,7 +1328,6 @@ export const useAppStore = defineStore('app', () => {
     updateAppointmentStatus,
     refreshConversations,
     loadHistory,
-    connectTelegram,
     refreshBusiness,
     refreshFaqs,
     createFaq,

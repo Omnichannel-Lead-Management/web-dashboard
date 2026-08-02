@@ -5,15 +5,14 @@ import {
   Send,
   MessageCircleMore,
   Globe2,
-  Check,
   Copy,
-  ShieldCheck,
 } from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
 import SettingsNavigation from '../components/settings/SettingsNavigation.vue'
 import FaqManager from '../components/settings/FaqManager.vue'
 import ChatbotSettings from '../components/settings/ChatbotSettings.vue'
 import WhatsAppConnect from '../components/settings/WhatsAppConnect.vue'
+import TelegramConnect from '../components/settings/TelegramConnect.vue'
 import AppButton from '../components/common/AppButton.vue'
 import AppBadge from '../components/common/AppBadge.vue'
 import { useAppStore } from '../stores/app'
@@ -80,9 +79,6 @@ const channels = computed(() => [
     detail: 'Widget active',
   },
 ])
-const telegramToken = ref('')
-const telegramBusy = ref(false)
-
 watch(
   () => route.query.section,
   (section) => {
@@ -97,22 +93,6 @@ function selectSection(sectionId) {
   router.replace({ query: { section: sectionId } })
 }
 
-async function connectTelegramBot() {
-  if (!telegramToken.value.trim()) {
-    store.notify('Paste a BotFather token first', 'error')
-    return
-  }
-
-  telegramBusy.value = true
-  try {
-    await store.connectTelegram(telegramToken.value.trim())
-    telegramToken.value = ''
-  } catch (error) {
-    store.notify(error.message || 'Telegram connect failed', 'error')
-  } finally {
-    telegramBusy.value = false
-  }
-}
 </script>
 <template>
   <AppShell>
@@ -164,49 +144,7 @@ async function connectTelegramBot() {
             </article>
           </template>
           <template v-else-if="activeSection === 'telegram'">
-            <h2>Telegram setup</h2>
-            <p class="intro">
-              Connect a BotFather token. Gateway public URL:
-              <code>
-                {{
-                  store.businessId
-                    ? `business ${store.businessId}`
-                    : 'create a business first'
-                }}
-              </code>
-            </p>
-            <div class="status">
-              <Check :size="20" />
-              <div>
-                <b>{{ store.businessName || 'Your business' }}</b>
-                <small>
-                  Webhook target uses PUBLIC_BASE_URL on the gateway
-                </small>
-              </div>
-            </div>
-            <h3>Connect bot</h3>
-            <ol>
-              <li>Open @BotFather in Telegram.</li>
-              <li>Create a bot and copy its token.</li>
-              <li>Paste the token below and connect.</li>
-            </ol>
-            <label class="field">
-              Bot token
-              <input
-                v-model="telegramToken"
-                type="password"
-                placeholder="Paste your BotFather token"
-                autocomplete="off"
-              />
-            </label>
-            <small class="security">
-              <ShieldCheck :size="14" />
-              Token is sent to the gateway and stored per business. Make sure
-              PUBLIC_BASE_URL is reachable by Telegram.
-            </small>
-            <AppButton :disabled="telegramBusy" @click="connectTelegramBot">
-              {{ telegramBusy ? 'Connecting…' : 'Connect Telegram' }}
-            </AppButton>
+            <TelegramConnect />
           </template>
           <template v-else-if="activeSection === 'whatsapp'">
             <WhatsAppConnect />
@@ -339,24 +277,6 @@ async function connectTelegramBot() {
   color: var(--success);
   font-weight: 600;
 }
-.status {
-  display: flex;
-  gap: 11px;
-  align-items: center;
-  background: var(--success-bg);
-  color: var(--success);
-  padding: 15px;
-  border-radius: 12px;
-  margin-bottom: 24px;
-}
-.status div {
-  display: flex;
-  flex-direction: column;
-}
-.status small {
-  font-size: 10.5px;
-  margin-top: 3px;
-}
 .content h3 {
   font-size: 13.5px;
 }
@@ -368,14 +288,6 @@ async function connectTelegramBot() {
 .content > .field {
   margin: 17px 0;
   max-width: 520px;
-}
-.security {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  color: var(--muted);
-  font-size: 10.5px;
-  margin: -8px 0 17px;
 }
 .toggle-row {
   display: flex;

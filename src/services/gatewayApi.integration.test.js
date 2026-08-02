@@ -6,6 +6,39 @@ import { describe, expect, test } from 'bun:test'
  * against a local mock fetch.
  */
 describe('gatewayApi integration (mock fetch)', () => {
+  test('Telegram connect uses encoded gateway URL and body-only token', async () => {
+    const calls = []
+    globalThis.fetch = async (url, options = {}) => {
+      calls.push({ url: String(url), options })
+      return Response.json({ success: true, ok: true, bot_username: 'test_bot' })
+    }
+    const { gatewayApi } = await import(`./gatewayApi.js?t=tg-${Date.now()}`)
+    const token = '123456:sample-token'
+    await gatewayApi.connectTelegram('biz/a & b', token)
+
+    expect(new URL(calls[0].url).pathname).toBe(
+      '/api/businesses/biz%2Fa%20%26%20b/channels/telegram',
+    )
+    expect(calls[0].options.method).toBe('POST')
+    expect(JSON.parse(calls[0].options.body)).toEqual({ bot_token: token })
+    expect(calls[0].url.includes(token)).toBe(false)
+    expect(Object.keys(JSON.parse(calls[0].options.body))).toEqual(['bot_token'])
+  })
+
+  test('Telegram errors preserve backend message, status and body', async () => {
+    const body = { success: false, error: 'Invalid Telegram bot token' }
+    globalThis.fetch = async () => Response.json(body, { status: 400 })
+    const { gatewayApi } = await import(`./gatewayApi.js?t=tg-error-${Date.now()}`)
+    try {
+      await gatewayApi.connectTelegram('biz_1', 'invalid-token')
+      throw new Error('Expected Telegram connection to fail')
+    } catch (error) {
+      expect(error.message).toBe('Invalid Telegram bot token')
+      expect(error.status).toBe(400)
+      expect(error.body).toEqual(body)
+    }
+  })
+
   test('WhatsApp methods use encoded gateway URLs and the correct methods', async () => {
     const calls = []
     globalThis.fetch = async (url, options = {}) => {

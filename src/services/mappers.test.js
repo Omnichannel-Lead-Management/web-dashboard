@@ -33,10 +33,49 @@ import {
   mapWhatsAppConnection,
   mapWhatsAppQr,
   mapWhatsAppStatus,
+  mapTelegramConnection,
 } from './mappers.js'
 import { gatewayWsUrl } from '../config.js'
 
 describe('mappers unit', () => {
+  test('maps verified Telegram success without exposing the token', () => {
+    const source = {
+      success: true,
+      ok: true,
+      bot_username: '  sample_bot  ',
+      bot_token: 'must-not-leak',
+    }
+    const snapshot = structuredClone(source)
+    expect(mapTelegramConnection(source)).toEqual({
+      connected: true,
+      botUsername: 'sample_bot',
+    })
+    expect(mapTelegramConnection(source)).not.toHaveProperty('botToken')
+    expect(mapTelegramConnection(source)).not.toHaveProperty('bot_token')
+    expect(source).toEqual(snapshot)
+  })
+
+  test('maps nested Telegram response wrappers', () => {
+    expect(
+      mapTelegramConnection({
+        success: true,
+        data: { ok: true, bot_username: 'nested_bot' },
+      }),
+    ).toEqual({ connected: true, botUsername: 'nested_bot' })
+  })
+
+  test('rejects malformed or unsuccessful Telegram responses', () => {
+    expect(() => mapTelegramConnection({ success: true })).toThrow(
+      'invalid Telegram connection response',
+    )
+    expect(() => mapTelegramConnection({ success: false, ok: true })).toThrow(
+      'invalid Telegram connection response',
+    )
+    expect(() => mapTelegramConnection({ success: true, ok: 'true' })).toThrow(
+      'invalid Telegram connection response',
+    )
+  })
+
   test('maps connected and disconnected WhatsApp responses safely', () => {
     expect(
       mapWhatsAppStatus({
