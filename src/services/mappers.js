@@ -44,8 +44,11 @@ function faqBoolean(value) {
 function faqTimestamp(value) {
   if (value === null || value === undefined || value === '') return null
   const numeric = Number(value)
-  if (!Number.isInteger(numeric)) return null
-  return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
+  if (Number.isInteger(numeric)) {
+    return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
+  }
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? null : parsed
 }
 
 /** chatbot-builder FAQ record -> the stable shape used by settings. */
@@ -68,17 +71,36 @@ export function mapFaq(faq = {}) {
 
 /** Form FAQ -> documented gateway request contract. */
 export function toFaqPayload(faq) {
+  const seenKeywords = new Set()
   return {
     question: String(faq.question ?? '').trim(),
     answer: String(faq.answer ?? '').trim(),
-    keywords: [
-      ...new Set(
-        (faq.keywords || [])
-          .map((keyword) => String(keyword).trim())
-          .filter(Boolean),
-      ),
-    ],
+    keywords: (faq.keywords || [])
+      .map((keyword) => String(keyword).trim())
+      .filter((keyword) => {
+        const normalized = keyword.toLowerCase()
+        if (!keyword || seenKeywords.has(normalized)) return false
+        seenKeywords.add(normalized)
+        return true
+      }),
     enabled: faq.enabled !== false,
+  }
+}
+
+export function faqPayloadWithPendingKeyword(faq, pendingKeyword = '') {
+  return toFaqPayload({
+    ...faq,
+    keywords: [...(faq.keywords || []), pendingKeyword],
+  })
+}
+
+export function faqEditorDraft(faq = {}) {
+  return {
+    question: String(faq.question ?? ''),
+    answer: String(faq.answer ?? ''),
+    keywords: Array.isArray(faq.keywords) ? [...faq.keywords] : [],
+    enabled: faq.enabled !== false,
+    keywordInput: '',
   }
 }
 

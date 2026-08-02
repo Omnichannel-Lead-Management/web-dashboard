@@ -58,6 +58,7 @@ export const useAppStore = defineStore('app', () => {
   const appointments = ref([])
   const faqs = ref([])
   const loadingFaqs = ref(false)
+  const faqError = ref('')
   const loadingLeads = ref(false)
   const loadingLeadDetail = ref(false)
   const leadListError = ref('')
@@ -69,6 +70,9 @@ export const useAppStore = defineStore('app', () => {
   let leadDetailRequestId = 0
   const leadSessionVersion = ref(0)
   const activeLeadMutations = new Set()
+  let faqSessionVersion = 0
+  let faqListRequestId = 0
+  const activeFaqMutations = new Set()
   const selectedConversationId = ref('')
   const toast = ref(null)
   const connectionStatus = ref('offline')
@@ -469,6 +473,9 @@ export const useAppStore = defineStore('app', () => {
     leadListRequestId += 1
     leadDetailRequestId += 1
     activeLeadMutations.clear()
+    faqSessionVersion += 1
+    faqListRequestId += 1
+    activeFaqMutations.clear()
     leads.value = []
     leadDetail.value = null
     leadActivities.value = []
@@ -476,6 +483,9 @@ export const useAppStore = defineStore('app', () => {
     leadDetailError.value = ''
     loadingLeads.value = false
     loadingLeadDetail.value = false
+    faqs.value = []
+    faqError.value = ''
+    loadingFaqs.value = false
     appointments.value = []
   }
 
@@ -877,47 +887,182 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function refreshFaqs() {
-    if (!businessId.value) throw new Error('No business selected')
-    loadingFaqs.value = true
-    try {
-      const result = await gatewayApi.listFaqs(businessId.value)
-      faqs.value = (result?.faqs || []).map(mapFaq)
-      return faqs.value
-    } finally {
-      loadingFaqs.value = false
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
     }
+    const sessionVersion = faqSessionVersion
+    const requestBusinessId = businessId.value
+    const requestId = ++faqListRequestId
+    loadingFaqs.value = true
+    faqError.value = ''
+    try {
+      const result = await gatewayApi.listFaqs(requestBusinessId)
+      if (
+        requestId !== faqListRequestId ||
+        sessionVersion !== faqSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return null
+      if (!Array.isArray(result?.faqs)) {
+        throw new Error('Gateway returned an invalid FAQ list response')
+      }
+      faqs.value = result.faqs.map(mapFaq)
+      return faqs.value
+    } catch (error) {
+      if (
+        requestId !== faqListRequestId ||
+        sessionVersion !== faqSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return null
+      faqError.value = error.message || 'Failed to load FAQs'
+      notify(faqError.value, 'error')
+      throw error
+    } finally {
+      if (
+        requestId === faqListRequestId &&
+        sessionVersion === faqSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) loadingFaqs.value = false
+    }
+  }
+
+  function invalidateFaqListRequests() {
+    faqListRequestId += 1
+    loadingFaqs.value = false
   }
 
   async function createFaq(faq) {
-    if (!businessId.value) throw new Error('No business selected')
-    const result = await gatewayApi.createFaq(
-      businessId.value,
-      toFaqPayload(faq),
-    )
-    if (!result?.faq?.id) {
-      throw new Error('Gateway returned an invalid FAQ response')
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
     }
-    const created = mapFaq(result.faq)
-    faqs.value.unshift(created)
-    return created
+    const sessionVersion = faqSessionVersion
+    const requestBusinessId = businessId.value
+    const mutationKey = `${sessionVersion}:create`
+    if (activeFaqMutations.has(mutationKey)) {
+      throw new Error('An FAQ is already being created')
+    }
+    activeFaqMutations.add(mutationKey)
+    try {
+      const result = await gatewayApi.createFaq(
+        requestBusinessId,
+        toFaqPayload(faq),
+      )
+      if (!result?.faq?.id) {
+        throw new Error('Gateway returned an invalid FAQ response')
+      }
+      const created = mapFaq(result.faq)
+      if (
+        sessionVersion !== faqSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return created
+      invalidateFaqListRequests()
+      faqs.value.unshift(created)
+      notify('FAQ created')
+      return created
+    } catch (error) {
+      if (
+        sessionVersion === faqSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) notify(error.message || 'FAQ could not be created', 'error')
+      throw error
+    } finally {
+      activeFaqMutations.delete(mutationKey)
+    }
   }
 
   async function updateFaq(faqId, changes) {
-    if (!businessId.value) throw new Error('No business selected')
-    const result = await gatewayApi.updateFaq(faqId, toFaqPayload(changes))
-    if (!result?.faq?.id) {
-      throw new Error('Gateway returned an invalid FAQ response')
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
     }
-    const updated = mapFaq(result.faq)
+    const sessionVersion = faqSessionVersion
+    const requestBusinessId = businessId.value
+    const mutationKey = `${sessionVersion}:update:${faqId}`
+    if (activeFaqMutations.has(mutationKey)) {
+      throw new Error('This FAQ is already being updated')
+    }
+    activeFaqMutations.add(mutationKey)
     const index = faqs.value.findIndex((faq) => faq.id === faqId)
-    if (index >= 0) faqs.value[index] = updated
-    return updated
+    const previous = index >= 0 ? { ...faqs.value[index] } : null
+    const isToggle = Object.keys(changes).length === 1 && 'enabled' in changes
+    if (isToggle && index >= 0) {
+      faqs.value[index].enabled = Boolean(changes.enabled)
+    }
+    const payload = isToggle
+      ? { enabled: Boolean(changes.enabled) }
+      : toFaqPayload({ ...(previous || {}), ...changes })
+    try {
+      const result = await gatewayApi.updateFaq(faqId, payload)
+      if (!result?.faq?.id) {
+        throw new Error('Gateway returned an invalid FAQ response')
+      }
+      const updated = mapFaq(result.faq)
+      if (
+        sessionVersion !== faqSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return updated
+      invalidateFaqListRequests()
+      const currentIndex = faqs.value.findIndex((faq) => faq.id === faqId)
+      if (currentIndex >= 0) faqs.value[currentIndex] = updated
+      notify(
+        isToggle
+          ? `FAQ ${updated.enabled ? 'enabled' : 'disabled'}`
+          : 'FAQ updated',
+      )
+      return updated
+    } catch (error) {
+      if (
+        sessionVersion === faqSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) {
+        if (isToggle && previous) {
+          const currentIndex = faqs.value.findIndex((faq) => faq.id === faqId)
+          if (currentIndex >= 0) faqs.value[currentIndex] = previous
+        }
+        notify(error.message || 'FAQ could not be updated', 'error')
+      }
+      throw error
+    } finally {
+      activeFaqMutations.delete(mutationKey)
+    }
   }
 
   async function deleteFaq(faqId) {
-    if (!businessId.value) throw new Error('No business selected')
-    await gatewayApi.deleteFaq(faqId)
-    faqs.value = faqs.value.filter((faq) => faq.id !== faqId)
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
+    }
+    const sessionVersion = faqSessionVersion
+    const requestBusinessId = businessId.value
+    const mutationKey = `${sessionVersion}:delete:${faqId}`
+    if (activeFaqMutations.has(mutationKey)) {
+      throw new Error('This FAQ is already being deleted')
+    }
+    activeFaqMutations.add(mutationKey)
+    try {
+      await gatewayApi.deleteFaq(faqId)
+      if (
+        sessionVersion !== faqSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return
+      invalidateFaqListRequests()
+      faqs.value = faqs.value.filter((faq) => faq.id !== faqId)
+      notify('FAQ deleted')
+    } catch (error) {
+      if (
+        sessionVersion === faqSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) notify(error.message || 'FAQ could not be deleted', 'error')
+      throw error
+    } finally {
+      activeFaqMutations.delete(mutationKey)
+    }
   }
 
   // Auto-reconnect after page refresh when already signed in
@@ -953,6 +1098,7 @@ export const useAppStore = defineStore('app', () => {
     leadSessionVersion,
     loadingAppointments,
     loadingFaqs,
+    faqError,
     notify,
     login,
     registerBusiness,

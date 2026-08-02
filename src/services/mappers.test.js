@@ -26,6 +26,8 @@ import {
   parseConversationId,
   mapFaq,
   toFaqPayload,
+  faqEditorDraft,
+  faqPayloadWithPendingKeyword,
 } from './mappers.js'
 import { gatewayWsUrl } from '../config.js'
 
@@ -64,6 +66,7 @@ describe('mappers unit', () => {
       'booking',
     ])
     expect(mapFaq({ keywords: '{bad json' }).keywords).toEqual(['{bad json'])
+    expect(mapFaq({ keywords: null }).keywords).toEqual([])
   })
 
   test('mapFaq coerces chatbot-builder boolean representations', () => {
@@ -78,15 +81,88 @@ describe('mappers unit', () => {
       toFaqPayload({
         question: '  Where are you? ',
         answer: ' Colombo.  ',
-        keywords: [' location ', '', 'location'],
+        keywords: [' location ', '', 'LOCATION', 'other'],
         enabled: true,
       }),
     ).toEqual({
       question: 'Where are you?',
       answer: 'Colombo.',
-      keywords: ['location'],
+      keywords: ['location', 'other'],
       enabled: true,
     })
+  })
+
+  test('mapFaq supports ISO timestamps and does not mutate its source', () => {
+    const source = {
+      id: 'faq_1',
+      keywords: [' hours '],
+      created_at: '2026-08-03T10:00:00.000Z',
+      updated_at: 1_754_046_000_000,
+    }
+    const snapshot = structuredClone(source)
+    const mapped = mapFaq(source)
+    expect(mapped.createdAt).toBe(Date.parse('2026-08-03T10:00:00.000Z'))
+    expect(mapped.updatedAt).toBe(1_754_046_000_000)
+    expect(source).toEqual(snapshot)
+  })
+
+  test('pending FAQ keywords participate in normalized change detection', () => {
+    const original = {
+      question: 'When are you open?',
+      answer: 'Nine to five.',
+      keywords: ['hours'],
+      enabled: true,
+    }
+    const originalPayload = toFaqPayload(original)
+    const withLocation = faqPayloadWithPendingKeyword(original, ' location ')
+    expect(withLocation).toEqual({
+      ...originalPayload,
+      keywords: ['hours', 'location'],
+    })
+    expect(withLocation).not.toEqual(originalPayload)
+    expect(faqPayloadWithPendingKeyword(original, 'HOURS')).toEqual(
+      originalPayload,
+    )
+    expect(faqPayloadWithPendingKeyword(original, '   ')).toEqual(
+      originalPayload,
+    )
+  })
+
+  test('pending keyword normalization preserves chip removals and additions', () => {
+    const originalKeywords = ['remove', 'keep']
+    const edited = {
+      question: 'Question',
+      answer: 'Answer',
+      keywords: ['keep'],
+      enabled: true,
+    }
+    expect(faqPayloadWithPendingKeyword(edited, '  New  ')).toEqual({
+      question: 'Question',
+      answer: 'Answer',
+      keywords: ['keep', 'New'],
+      enabled: true,
+    })
+    expect(originalKeywords).toEqual(['remove', 'keep'])
+    expect(
+      faqPayloadWithPendingKeyword(
+        { ...edited, keywords: ['keep', '', 'KEEP'] },
+        'keep',
+      ).keywords,
+    ).toEqual(['keep'])
+  })
+
+  test('FAQ editor reset drafts clear pending keyword input', () => {
+    const source = {
+      question: 'Question',
+      answer: 'Answer',
+      keywords: ['hours'],
+      enabled: false,
+    }
+    const draft = faqEditorDraft(source)
+    expect(draft).toEqual({ ...source, keywordInput: '' })
+    draft.keywords.push('changed')
+    expect(source.keywords).toEqual(['hours'])
+    expect(faqEditorDraft().keywordInput).toBe('')
   })
 
   test('conversationId and parseConversationId round-trip', () => {

@@ -114,26 +114,45 @@ describe('gatewayApi integration (mock fetch)', () => {
       keywords: ['hours'],
       enabled: true,
     })
-    expect(JSON.parse(calls[2].options.body).items).toHaveLength(1)
+    expect(JSON.parse(calls[2].options.body)).toEqual({
+      items: [
+        {
+          question: 'Location?',
+          answer: 'Colombo.',
+          keywords: ['location'],
+          enabled: true,
+        },
+      ],
+    })
     expect(JSON.parse(calls[3].options.body).enabled).toBe(false)
+    expect(calls[4].options.body).toBeUndefined()
   })
 
   test('FAQ mutation errors are surfaced instead of returning mock success', async () => {
+    const responseBody = {
+      success: false,
+      message: 'FAQ endpoint unavailable',
+    }
     globalThis.fetch = async () =>
-      new Response(JSON.stringify({ error: 'FAQ endpoint unavailable' }), {
-        status: 404,
+      new Response(JSON.stringify(responseBody), {
+        status: 503,
         headers: { 'Content-Type': 'application/json' },
       })
 
     const { gatewayApi } = await import(`./gatewayApi.js?t=${Date.now() + 3}`)
-    await expect(
-      gatewayApi.createFaq('biz_1', {
+    try {
+      await gatewayApi.createFaq('biz_1', {
         question: 'Question',
         answer: 'Answer',
         keywords: [],
         enabled: true,
-      }),
-    ).rejects.toThrow('FAQ endpoint unavailable')
+      })
+      throw new Error('Expected FAQ creation to fail')
+    } catch (error) {
+      expect(error.message).toBe('FAQ endpoint unavailable')
+      expect(error.status).toBe(503)
+      expect(error.body).toEqual(responseBody)
+    }
   })
 
   test('getAvailability sends an encoded GET request without a body', async () => {
