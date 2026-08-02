@@ -8,13 +8,20 @@ defineProps({
     type: Array,
     default: () => [],
   },
+  selectedIds: {
+    type: Array,
+    default: () => [],
+  },
 })
+
+defineEmits(['toggle-selection'])
 </script>
 <template>
   <div class="table card">
     <table>
       <thead>
         <tr>
+          <th><span class="sr-only">Select</span></th>
           <th>Lead</th>
           <th>Platform</th>
           <th>Status</th>
@@ -32,6 +39,15 @@ defineProps({
           @click="$router.push(`/leads/${l.id}`)"
           @keydown.enter="$router.push(`/leads/${l.id}`)"
         >
+          <td class="select-cell">
+            <input
+              type="checkbox"
+              :checked="selectedIds.includes(l.id)"
+              :aria-label="`Select lead ${l.name}`"
+              @click.stop
+              @change="$emit('toggle-selection', l.id)"
+            />
+          </td>
           <td>
             <AppAvatar :initials="l.initials" :channel="l.channel" />
             <span>
@@ -83,15 +99,30 @@ tbody tr {
 tbody tr:hover {
   background: #fafaff;
 }
-td:first-child {
+td:nth-child(2) {
   display: flex;
   align-items: center;
   gap: 10px;
 }
-td:first-child span {
+td:nth-child(2) span {
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+.select-cell {
+  width: 34px;
+  padding-right: 0;
+}
+.select-cell input {
+  width: 16px;
+  height: 16px;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
 }
 td small {
   font-size: 9.5px;

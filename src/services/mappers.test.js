@@ -5,6 +5,13 @@ import {
   mapHistoryMessage,
   mapLead,
   mapLeadActivity,
+  filterVisibleLeads,
+  retainVisibleLeadSelection,
+  summarizeBulkLeadResults,
+  isLeadListRequestCurrent,
+  buildLeadStatusPatch,
+  hasConversionValueChanged,
+  leadStatusDrafts,
   mapAppointment,
   mapAvailability,
   selectAppointmentSlot,
@@ -180,6 +187,32 @@ describe('mapLead unit', () => {
     expect(lead.age).toBe('3h')
   })
 
+  test('maps all editable fields, preserves zero, and does not mutate source', () => {
+    const source = {
+      ...row,
+      notes: '',
+      service_interest: 'Wedding photography',
+      budget_range: 'high',
+      conversion_value: 0,
+      tags: ['vip', 'follow-up'],
+      channel_source: 'telegram',
+      updated_at: '2026-08-02T10:00:00.000Z',
+      last_contact_at: null,
+      converted_at: '2026-08-02T11:00:00.000Z',
+    }
+    const snapshot = structuredClone(source)
+    const lead = mapLead(source)
+
+    expect(lead.businessId).toBe('biz_1')
+    expect(lead.notes).toBe('')
+    expect(lead.serviceInterest).toBe('Wedding photography')
+    expect(lead.budgetRange).toBe('high')
+    expect(lead.conversionValue).toBe(0)
+    expect(lead.tags).toEqual(['vip', 'follow-up'])
+    expect(lead.updatedAt).toBe('2026-08-02T10:00:00.000Z')
+    expect(source).toEqual(snapshot)
+  })
+
   test('unassigned and missing interest read as placeholders, not blanks', () => {
     const lead = mapLead({
       ...row,
@@ -188,6 +221,9 @@ describe('mapLead unit', () => {
     })
     expect(lead.agent).toBe('Unassigned')
     expect(lead.interest).toBe('Not specified')
+    expect(lead.serviceInterest).toBe('')
+    expect(lead.notes).toBe('Wants a Saturday slot')
+    expect(mapLead({ ...row, tags: null }).tags).toEqual([])
   })
 
   test('contact details are never invented — lead-manager does not store them', () => {
@@ -210,6 +246,129 @@ describe('mapLead unit', () => {
     )
     expect(activity.by).toBe('agent_2')
     expect(activity.age).toBe('1m')
+  })
+
+  test('activity preserves timestamp, metadata, and missing optional values', () => {
+    const source = {
+      id: 'activity_1',
+      action: 'notes_updated',
+      created_at: '2026-08-02T10:00:00.000Z',
+      metadata: { field: 'notes' },
+    }
+    const snapshot = structuredClone(source)
+    const activity = mapLeadActivity(source)
+    expect(activity.type).toBe('notes_updated')
+    expect(activity.description).toBe('')
+    expect(activity.by).toBe('')
+    expect(activity.createdAt).toBe('2026-08-02T10:00:00.000Z')
+    expect(activity.metadata).toEqual({ field: 'notes' })
+    expect(source).toEqual(snapshot)
+  })
+
+  test('bulk helpers retain visible failures and summarize settled results', () => {
+    expect(retainVisibleLeadSelection(['a', 'b'], ['b', 'c'])).toEqual(['b'])
+    expect(
+      summarizeBulkLeadResults(
+        ['a', 'b'],
+        [{ status: 'fulfilled' }, { status: 'rejected' }],
+      ),
+    ).toEqual({ succeededIds: ['a'], failedIds: ['b'] })
+    expect(isLeadListRequestCurrent(3, 3)).toBe(true)
+    expect(isLeadListRequestCurrent(2, 3)).toBe(false)
+  })
+
+  test('live leads remain protected by combined status and search filtering', () => {
+    const leads = [
+      { id: 'new-match', name: 'Maya', interest: 'Wedding', status: 'new', channel: 'Telegram' },
+      { id: 'qualified-stream', name: 'Maya', interest: 'Wedding', status: 'qualified', channel: 'Telegram' },
+      { id: 'new-search-miss', name: 'Ravi', interest: 'Portrait', status: 'new', channel: 'Telegram' },
+    ]
+
+    expect(filterVisibleLeads(leads, { status: 'new' }).map((lead) => lead.id)).toEqual([
+      'new-match',
+      'new-search-miss',
+    ])
+    leads[0] = { ...leads[0], status: 'contacted' }
+    expect(filterVisibleLeads(leads, { status: 'new' }).map((lead) => lead.id)).toEqual([
+      'new-search-miss',
+    ])
+    expect(filterVisibleLeads(leads, { status: '' })).toHaveLength(3)
+    const visible = filterVisibleLeads(leads, { status: 'new', search: 'portrait' })
+    expect(visible.map((lead) => lead.id)).toEqual(['new-search-miss'])
+    expect(retainVisibleLeadSelection(['new-match', 'new-search-miss'], visible.map((lead) => lead.id))).toEqual([
+      'new-search-miss',
+    ])
+  })
+
+  test('converted lead value changes use numeric comparison and minimal patches', () => {
+    expect(hasConversionValueChanged('25000', 25000)).toBe(false)
+    expect(
+      buildLeadStatusPatch({
+        currentStatus: 'converted',
+        currentConversionValue: 25000,
+        status: 'converted',
+        conversionValue: '25000',
+      }).patch,
+    ).toBeNull()
+    expect(
+      buildLeadStatusPatch({
+        currentStatus: 'converted',
+        currentConversionValue: 25000,
+        status: 'converted',
+        conversionValue: '30000',
+      }),
+    ).toEqual({ patch: { conversion_value: 30000 }, error: '' })
+    expect(hasConversionValueChanged('0', null)).toBe(true)
+    expect(hasConversionValueChanged('5', 0)).toBe(true)
+  })
+
+  test('converted status validates values and status changes require a value', () => {
+    const negative = buildLeadStatusPatch({
+      currentStatus: 'converted',
+      currentConversionValue: 10,
+      status: 'converted',
+      conversionValue: '-1',
+    })
+    expect(negative.patch).toBeNull()
+    expect(negative.error).toContain('zero or more')
+    const invalid = buildLeadStatusPatch({
+      currentStatus: 'converted',
+      currentConversionValue: 10,
+      status: 'converted',
+      conversionValue: 'not-a-number',
+    })
+    expect(invalid.patch).toBeNull()
+    expect(invalid.error).toContain('zero or more')
+
+    const missing = buildLeadStatusPatch({
+      currentStatus: 'qualified',
+      currentConversionValue: null,
+      status: 'converted',
+      conversionValue: '',
+    })
+    expect(missing.patch).toBeNull()
+    expect(missing.error).toContain('zero or more')
+    expect(
+      buildLeadStatusPatch({
+        currentStatus: 'qualified',
+        currentConversionValue: null,
+        status: 'converted',
+        conversionValue: '0',
+      }).patch,
+    ).toEqual({ status: 'converted', conversion_value: 0 })
+  })
+
+  test('status draft reset restores status and conversion value without mutation', () => {
+    const lead = { status: 'converted', conversionValue: 25000 }
+    expect(leadStatusDrafts(lead)).toEqual({
+      status: 'converted',
+      conversionValue: '25000',
+    })
+    expect(lead).toEqual({ status: 'converted', conversionValue: 25000 })
+    expect(leadStatusDrafts({ status: 'converted', conversionValue: null })).toEqual({
+      status: 'converted',
+      conversionValue: '',
+    })
   })
 })
 

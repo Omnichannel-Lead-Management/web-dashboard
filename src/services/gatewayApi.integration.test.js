@@ -187,4 +187,69 @@ describe('gatewayApi integration (mock fetch)', () => {
       expect(error.body).toEqual(conflictBody)
     }
   })
+
+  test('lead update and assignment forward audited payloads', async () => {
+    const calls = []
+    globalThis.fetch = async (url, options = {}) => {
+      calls.push({ url: String(url), options })
+      return Response.json({ success: true, lead: { id: 'lead/1' } })
+    }
+
+    const { gatewayApi } = await import(`./gatewayApi.js?t=${Date.now() + 6}`)
+    await gatewayApi.listLeads('biz_1', { status: 'qualified' })
+    await gatewayApi.updateLead('lead/1', 'biz_1', {
+      notes: 'Follow up tomorrow',
+      performed_by: 'agent_2',
+    })
+    await gatewayApi.assignLead('lead/1', 'biz_1', {
+      agent_id: 'agent_1',
+      performed_by: 'agent_2',
+    })
+    await gatewayApi.assignLead('lead/1', 'biz_1', {
+      performed_by: 'agent_2',
+    })
+
+    expect(new URL(calls[0].url).searchParams.get('businessId')).toBe('biz_1')
+    expect(new URL(calls[0].url).searchParams.get('status')).toBe('qualified')
+    expect(new URL(calls[1].url).pathname).toBe('/api/leads/lead%2F1')
+    expect(calls[1].options.method).toBe('PATCH')
+    expect(JSON.parse(calls[1].options.body)).toEqual({
+      business_id: 'biz_1',
+      notes: 'Follow up tomorrow',
+      performed_by: 'agent_2',
+    })
+    expect(new URL(calls[2].url).pathname).toBe(
+      '/api/leads/lead%2F1/assign',
+    )
+    expect(calls[2].options.method).toBe('POST')
+    expect(JSON.parse(calls[2].options.body)).toEqual({
+      business_id: 'biz_1',
+      agent_id: 'agent_1',
+      performed_by: 'agent_2',
+    })
+    expect(JSON.parse(calls[3].options.body)).toEqual({
+      business_id: 'biz_1',
+      performed_by: 'agent_2',
+    })
+  })
+
+  test('lead mutation errors preserve backend message and status', async () => {
+    globalThis.fetch = async () =>
+      Response.json(
+        { success: false, message: 'Invalid lead transition' },
+        { status: 400 },
+      )
+    const { gatewayApi } = await import(`./gatewayApi.js?t=${Date.now() + 7}`)
+
+    try {
+      await gatewayApi.updateLead('lead_1', 'biz_1', {
+        status: 'new',
+        performed_by: 'agent_1',
+      })
+      throw new Error('Expected lead update to fail')
+    } catch (error) {
+      expect(error.message).toBe('Invalid lead transition')
+      expect(error.status).toBe(400)
+    }
+  })
 })

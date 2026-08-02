@@ -2,12 +2,12 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { gatewayApi } from '../services/gatewayApi'
 import { appointmentService } from '../services/appointmentService'
+import { leadService } from '../services/leadService'
 import { createAgentSocket } from '../services/agentSocket'
 import {
   mapConversation,
   mapHistoryMessage,
   mapLead,
-  mapLeadActivity,
   mapAppointment,
   mapFaq,
   toFaqPayload,
@@ -53,13 +53,22 @@ export const useAppStore = defineStore('app', () => {
   const conversations = ref([])
   const messages = ref({})
   const leads = ref([])
+  const leadDetail = ref(null)
+  const leadActivities = ref([])
   const appointments = ref([])
   const faqs = ref([])
   const loadingFaqs = ref(false)
   const loadingLeads = ref(false)
+  const loadingLeadDetail = ref(false)
+  const leadListError = ref('')
+  const leadDetailError = ref('')
   const loadingAppointments = ref(false)
   /** EventSource for the live lead feed; closed on sign-out. */
   let leadStream = null
+  let leadListRequestId = 0
+  let leadDetailRequestId = 0
+  const leadSessionVersion = ref(0)
+  const activeLeadMutations = new Set()
   const selectedConversationId = ref('')
   const toast = ref(null)
   const connectionStatus = ref('offline')
@@ -455,8 +464,18 @@ export const useAppStore = defineStore('app', () => {
     localStorage.setItem(STORAGE.auth, 'false')
     disconnectAgentChannel()
     disconnectLeadStream()
-    // Do not leave another tenant's leads on screen after a switch.
+    // Invalidate prior-session lead work before clearing tenant data.
+    leadSessionVersion.value += 1
+    leadListRequestId += 1
+    leadDetailRequestId += 1
+    activeLeadMutations.clear()
     leads.value = []
+    leadDetail.value = null
+    leadActivities.value = []
+    leadListError.value = ''
+    leadDetailError.value = ''
+    loadingLeads.value = false
+    loadingLeadDetail.value = false
     appointments.value = []
   }
 
@@ -519,25 +538,78 @@ export const useAppStore = defineStore('app', () => {
     if (!sent) notify('Not connected to gateway', 'error')
   }
 
-  async function refreshLeads() {
-    if (!businessId.value) return
+  async function refreshLeads(filters = {}) {
+    if (!authenticated.value || !businessId.value) return null
+    const sessionVersion = leadSessionVersion.value
+    const requestBusinessId = businessId.value
+    const requestId = ++leadListRequestId
     loadingLeads.value = true
+    leadListError.value = ''
     try {
-      const result = await gatewayApi.listLeads(businessId.value)
-      leads.value = (result.leads || []).map(mapLead)
+      const result = await leadService.list(requestBusinessId, filters)
+      if (
+        requestId !== leadListRequestId ||
+        sessionVersion !== leadSessionVersion.value ||
+        businessId.value !== requestBusinessId
+      ) return null
+      leads.value = result
+      return result
     } catch (error) {
+      if (
+        requestId !== leadListRequestId ||
+        sessionVersion !== leadSessionVersion.value ||
+        businessId.value !== requestBusinessId
+      ) return null
+      leadListError.value = error.message || 'Failed to load leads'
       notify(error.message || 'Failed to load leads', 'error')
+      return null
     } finally {
-      loadingLeads.value = false
+      if (
+        requestId === leadListRequestId &&
+        sessionVersion === leadSessionVersion.value &&
+        businessId.value === requestBusinessId
+      ) loadingLeads.value = false
     }
   }
 
   async function loadLead(id) {
     if (!businessId.value) return null
-    const result = await gatewayApi.getLead(id, businessId.value)
-    return {
-      lead: mapLead(result.lead),
-      activities: (result.activities || []).map(mapLeadActivity),
+    return leadService.get(id, businessId.value)
+  }
+
+  async function refreshLeadDetail(id) {
+    if (!authenticated.value || !businessId.value || !id) return null
+    const sessionVersion = leadSessionVersion.value
+    const requestBusinessId = businessId.value
+    const requestId = ++leadDetailRequestId
+    loadingLeadDetail.value = true
+    leadDetailError.value = ''
+    try {
+      const result = await leadService.get(id, requestBusinessId)
+      if (
+        requestId !== leadDetailRequestId ||
+        sessionVersion !== leadSessionVersion.value ||
+        businessId.value !== requestBusinessId
+      ) return null
+      leadDetail.value = result.lead
+      leadActivities.value = result.activities
+      const index = leads.value.findIndex((lead) => lead.id === id)
+      if (index >= 0) leads.value[index] = result.lead
+      return result
+    } catch (error) {
+      if (
+        requestId !== leadDetailRequestId ||
+        sessionVersion !== leadSessionVersion.value ||
+        businessId.value !== requestBusinessId
+      ) return null
+      leadDetailError.value = error.message || 'Failed to load lead'
+      throw error
+    } finally {
+      if (
+        requestId === leadDetailRequestId &&
+        sessionVersion === leadSessionVersion.value &&
+        businessId.value === requestBusinessId
+      ) loadingLeadDetail.value = false
     }
   }
 
@@ -546,11 +618,18 @@ export const useAppStore = defineStore('app', () => {
    * captured by the chatbot or by routing shows up without a refresh.
    */
   function connectLeadStream() {
-    if (!businessId.value || leadStream) return
+    if (!authenticated.value || !businessId.value || leadStream) return
+    const sessionVersion = leadSessionVersion.value
+    const streamBusinessId = businessId.value
     try {
-      leadStream = new EventSource(gatewayApi.leadStreamUrl(businessId.value))
+      leadStream = new EventSource(gatewayApi.leadStreamUrl(streamBusinessId))
 
       const upsert = (event) => {
+        if (
+          sessionVersion !== leadSessionVersion.value ||
+          businessId.value !== streamBusinessId ||
+          !authenticated.value
+        ) return
         const incoming = mapLead(JSON.parse(event.data))
         const index = leads.value.findIndex((item) => item.id === incoming.id)
         if (index === -1) leads.value.unshift(incoming)
@@ -572,34 +651,160 @@ export const useAppStore = defineStore('app', () => {
     leadStream = null
   }
 
-  async function updateLeadStatus(id, status) {
-    const lead = leads.value.find((currentLead) => currentLead.id === id)
-    const previous = lead?.status
-    if (lead) lead.status = status // optimistic; rolled back below on failure
-
-    try {
-      const result = await gatewayApi.updateLead(id, businessId.value, {
-        status,
-      })
-      if (lead && result.lead) Object.assign(lead, mapLead(result.lead))
-      notify(`Lead status updated to ${status}`)
-    } catch (error) {
-      if (lead && previous) lead.status = previous
-      // Lead Manager rejects backward moves (converted/lost are terminal), and
-      // that 400 is the message worth showing verbatim.
-      notify(error.message || 'Failed to update lead', 'error')
+  function mergeLead(updated) {
+    if (!updated) return
+    const index = leads.value.findIndex((lead) => lead.id === updated.id)
+    if (index >= 0) leads.value[index] = { ...leads.value[index], ...updated }
+    if (leadDetail.value?.id === updated.id) {
+      leadDetail.value = { ...leadDetail.value, ...updated }
     }
   }
 
-  async function assignLead(id, agentId) {
-    try {
-      const result = await gatewayApi.assignLead(id, businessId.value, agentId)
-      const lead = leads.value.find((currentLead) => currentLead.id === id)
-      if (lead && result.lead) Object.assign(lead, mapLead(result.lead))
-      notify(`Assigned to ${result.assigned_agent_id}`)
-    } catch (error) {
-      notify(error.message || 'Failed to assign lead', 'error')
+  function leadUpdateMessage(patch) {
+    if ('notes' in patch) return 'Lead notes updated'
+    if ('tags' in patch) return 'Lead tags updated'
+    if ('status' in patch) return 'Lead status updated'
+    if ('service_interest' in patch) return 'Lead service interest updated'
+    if ('budget_range' in patch) return 'Lead budget updated'
+    return 'Lead details updated'
+  }
+
+  async function updateLead(id, patch, { silent = false } = {}) {
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
     }
+    const sessionVersion = leadSessionVersion.value
+    const requestBusinessId = businessId.value
+    const mutationKey = `${sessionVersion}:${id}`
+    if (activeLeadMutations.has(mutationKey)) {
+      throw new Error('A lead update is already in progress')
+    }
+    activeLeadMutations.add(mutationKey)
+    let updated
+    try {
+      updated = await leadService.update(id, requestBusinessId, {
+        ...patch,
+        performed_by: agentId.value,
+      })
+      if (
+        sessionVersion !== leadSessionVersion.value ||
+        businessId.value !== requestBusinessId
+      ) {
+        activeLeadMutations.delete(mutationKey)
+        return updated
+      }
+      mergeLead(updated)
+    } catch (error) {
+      if (
+        !silent &&
+        sessionVersion === leadSessionVersion.value &&
+        businessId.value === requestBusinessId
+      ) notify(error.message || 'Failed to update lead', 'error')
+      activeLeadMutations.delete(mutationKey)
+      throw error
+    }
+
+    try {
+      if (
+        sessionVersion !== leadSessionVersion.value ||
+        businessId.value !== requestBusinessId
+      ) {
+        activeLeadMutations.delete(mutationKey)
+        return updated
+      }
+      const refreshed = await refreshLeadDetail(id)
+      if (
+        !silent &&
+        sessionVersion === leadSessionVersion.value &&
+        businessId.value === requestBusinessId
+      ) notify(leadUpdateMessage(patch))
+      return refreshed?.lead || updated
+    } catch {
+      if (
+        !silent &&
+        sessionVersion === leadSessionVersion.value &&
+        businessId.value === requestBusinessId
+      ) {
+        notify(
+          'Lead updated, but the latest activity could not be loaded.',
+          'error',
+        )
+      }
+      return updated
+    } finally {
+      activeLeadMutations.delete(mutationKey)
+    }
+  }
+
+  async function updateLeadStatus(id, status, options) {
+    return updateLead(id, { status }, options)
+  }
+
+  async function assignLead(id, targetAgentId, { silent = false } = {}) {
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
+    }
+    const sessionVersion = leadSessionVersion.value
+    const requestBusinessId = businessId.value
+    const mutationKey = `${sessionVersion}:${id}`
+    if (activeLeadMutations.has(mutationKey)) {
+      throw new Error('A lead assignment is already in progress')
+    }
+    activeLeadMutations.add(mutationKey)
+    let updated
+    try {
+      const payload = { performed_by: agentId.value }
+      if (targetAgentId) payload.agent_id = targetAgentId
+      updated = await leadService.assign(id, requestBusinessId, payload)
+      if (
+        sessionVersion !== leadSessionVersion.value ||
+        businessId.value !== requestBusinessId
+      ) {
+        activeLeadMutations.delete(mutationKey)
+        return updated
+      }
+      mergeLead(updated)
+    } catch (error) {
+      if (
+        !silent &&
+        sessionVersion === leadSessionVersion.value &&
+        businessId.value === requestBusinessId
+      ) notify(error.message || 'Failed to assign lead', 'error')
+      activeLeadMutations.delete(mutationKey)
+      throw error
+    }
+
+    try {
+      if (
+        sessionVersion !== leadSessionVersion.value ||
+        businessId.value !== requestBusinessId
+      ) return updated
+      const refreshed = await refreshLeadDetail(id)
+      if (
+        !silent &&
+        sessionVersion === leadSessionVersion.value &&
+        businessId.value === requestBusinessId
+      ) notify('Lead assignment updated')
+      return refreshed?.lead || updated
+    } catch {
+      if (
+        !silent &&
+        sessionVersion === leadSessionVersion.value &&
+        businessId.value === requestBusinessId
+      ) {
+        notify(
+          'Lead assigned, but the latest activity could not be loaded.',
+          'error',
+        )
+      }
+      return updated
+    } finally {
+      activeLeadMutations.delete(mutationKey)
+    }
+  }
+
+  async function autoAssignLead(id, options) {
+    return assignLead(id, undefined, options)
   }
 
   async function refreshAppointments() {
@@ -729,6 +934,8 @@ export const useAppStore = defineStore('app', () => {
     conversations,
     messages,
     leads,
+    leadDetail,
+    leadActivities,
     appointments,
     faqs,
     selectedConversationId,
@@ -740,6 +947,10 @@ export const useAppStore = defineStore('app', () => {
     agentName,
     loadingInbox,
     loadingLeads,
+    loadingLeadDetail,
+    leadListError,
+    leadDetailError,
+    leadSessionVersion,
     loadingAppointments,
     loadingFaqs,
     notify,
@@ -752,9 +963,12 @@ export const useAppStore = defineStore('app', () => {
     release,
     sendMessage,
     updateLeadStatus,
+    updateLead,
     assignLead,
+    autoAssignLead,
     refreshLeads,
     loadLead,
+    refreshLeadDetail,
     refreshAppointments,
     addAppointment,
     updateAppointmentStatus,

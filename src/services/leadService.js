@@ -16,7 +16,23 @@ export const leadService = {
     const result = await gatewayApi.getLead(id, businessId)
     return {
       lead: mapLead(result.lead),
-      activities: (result.activities || []).map(mapLeadActivity),
+      activities: (result.activities || [])
+        .map(mapLeadActivity)
+        .sort((left, right) => {
+          const leftTime = new Date(left.createdAt || 0).getTime() || 0
+          const rightTime = new Date(right.createdAt || 0).getTime() || 0
+          return rightTime - leftTime
+        }),
     }
+  },
+
+  async update(id, businessId, payload) {
+    const result = await gatewayApi.updateLead(id, businessId, payload)
+    return result.lead ? mapLead(result.lead) : null
+  },
+
+  async assign(id, businessId, payload) {
+    const result = await gatewayApi.assignLead(id, businessId, payload)
+    return result.lead ? mapLead(result.lead) : null
   },
 }

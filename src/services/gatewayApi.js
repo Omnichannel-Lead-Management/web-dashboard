@@ -117,17 +117,17 @@ export const gatewayApi = {
     return request(`/api/leads/${encodeURIComponent(id)}?${params}`)
   },
 
-  updateLead(id, businessId, changes) {
+  updateLead(id, businessId, payload) {
     return request(`/api/leads/${encodeURIComponent(id)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ business_id: businessId, ...changes }),
+      body: JSON.stringify({ business_id: businessId, ...payload }),
     })
   },
 
-  assignLead(id, businessId, agentId) {
+  assignLead(id, businessId, payload) {
     return request(`/api/leads/${encodeURIComponent(id)}/assign`, {
       method: 'POST',
-      body: JSON.stringify({ business_id: businessId, agent_id: agentId }),
+      body: JSON.stringify({ business_id: businessId, ...payload }),
     })
   },
 

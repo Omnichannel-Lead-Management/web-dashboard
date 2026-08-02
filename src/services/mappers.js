@@ -131,9 +131,14 @@ export function mapConversation(summary) {
 /** Compact age like the inbox uses: 45s, 12m, 3h, 5d. */
 function relativeAge(timestamp) {
   if (!timestamp) return ''
+  const parsed =
+    typeof timestamp === 'number' || /^\d+$/.test(String(timestamp))
+      ? Number(timestamp)
+      : new Date(timestamp).getTime()
+  if (Number.isNaN(parsed)) return ''
   const seconds = Math.max(
     0,
-    Math.floor((Date.now() - Number(timestamp)) / 1000),
+    Math.floor((Date.now() - parsed) / 1000),
   )
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
@@ -143,7 +148,11 @@ function relativeAge(timestamp) {
 
 function formatDate(timestamp) {
   if (!timestamp) return '—'
-  const date = new Date(Number(timestamp))
+  const value =
+    typeof timestamp === 'number' || /^\d+$/.test(String(timestamp))
+      ? Number(timestamp)
+      : timestamp
+  const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
   return date.toLocaleDateString([], {
     day: '2-digit',
@@ -160,27 +169,38 @@ function formatDate(timestamp) {
  * invented here. `messenger_id` is the identity an agent can actually act on.
  */
 export function mapLead(lead) {
-  const name = lead.display_name || lead.messenger_id || 'Unknown'
+  const source = lead || {}
+  const name = source.display_name || source.messenger_id || 'Unknown'
 
   return {
-    id: lead.id,
-    business_id: lead.business_id,
-    messenger_id: lead.messenger_id,
-    platform: lead.platform,
+    id: source.id,
+    businessId: source.business_id ?? '',
+    business_id: source.business_id,
+    messenger_id: source.messenger_id,
+    platform: source.platform,
     name,
     initials: initialsFrom(name),
-    channel: channelLabel(lead.platform),
-    status: lead.status,
-    score: lead.score ?? 0,
-    interest: lead.service_interest || 'Not specified',
-    agent: lead.assigned_agent_id || 'Unassigned',
-    assigned_agent_id: lead.assigned_agent_id || null,
-    age: relativeAge(lead.created_at),
-    created: formatDate(lead.created_at),
-    notes: lead.notes || 'No notes yet.',
-    tags: Array.isArray(lead.tags) ? lead.tags : [],
-    source: lead.source || '',
-    budget_range: lead.budget_range || '',
+    channel: channelLabel(source.platform),
+    status: source.status || 'new',
+    score: source.score ?? 0,
+    interest: source.service_interest || 'Not specified',
+    serviceInterest: source.service_interest ?? '',
+    agent: source.assigned_agent_id || 'Unassigned',
+    assignedAgentId: source.assigned_agent_id ?? null,
+    assigned_agent_id: source.assigned_agent_id ?? null,
+    age: relativeAge(source.created_at),
+    created: formatDate(source.created_at),
+    notes: source.notes ?? '',
+    tags: Array.isArray(source.tags) ? [...source.tags] : [],
+    source: source.source ?? '',
+    channelSource: source.channel_source ?? '',
+    budgetRange: source.budget_range ?? null,
+    budget_range: source.budget_range ?? null,
+    conversionValue: source.conversion_value ?? null,
+    createdAt: source.created_at ?? null,
+    updatedAt: source.updated_at ?? null,
+    lastContactAt: source.last_contact_at ?? null,
+    convertedAt: source.converted_at ?? null,
     email: 'Not provided',
     phone: 'Not provided',
     location: '—',
@@ -189,14 +209,110 @@ export function mapLead(lead) {
 
 /** Activity trail entry from GET /api/leads/:id. */
 export function mapLeadActivity(activity) {
+  const source = activity || {}
   return {
-    id: activity.id,
-    type: activity.activity_type,
-    description: activity.description,
-    by: activity.performed_by || 'system',
-    at: formatDate(activity.created_at),
-    age: relativeAge(activity.created_at),
+    id: source.id,
+    type: source.activity_type ?? source.action ?? source.type ?? '',
+    description: source.description ?? '',
+    by: source.performed_by ?? '',
+    createdAt: source.created_at ?? null,
+    at: formatDate(source.created_at),
+    age: relativeAge(source.created_at),
+    metadata: source.metadata ?? null,
   }
+}
+
+export function retainVisibleLeadSelection(selectedIds, visibleIds) {
+  const visible = new Set(visibleIds)
+  return selectedIds.filter((id) => visible.has(id))
+}
+
+export function filterVisibleLeads(
+  leads,
+  { search = '', status = '', channel = 'All' } = {},
+) {
+  const normalizedSearch = search.trim().toLowerCase()
+  return leads.filter((lead) => {
+    const searchableText = `${lead.name ?? ''} ${lead.id ?? ''} ${lead.interest ?? ''}`.toLowerCase()
+    const matchesSearch =
+      !normalizedSearch || searchableText.includes(normalizedSearch)
+    const matchesStatus = !status || lead.status === status
+    const matchesChannel = channel === 'All' || lead.channel === channel
+    return matchesSearch && matchesStatus && matchesChannel
+  })
+}
+
+export function summarizeBulkLeadResults(ids, results) {
+  const succeededIds = []
+  const failedIds = []
+  results.forEach((result, index) => {
+    const target = result.status === 'fulfilled' ? succeededIds : failedIds
+    target.push(ids[index])
+  })
+  return { succeededIds, failedIds }
+}
+
+export function isLeadListRequestCurrent(requestId, latestRequestId) {
+  return requestId === latestRequestId
+}
+
+export function leadStatusDrafts(lead) {
+  return {
+    status: lead?.status || 'new',
+    conversionValue:
+      lead?.conversionValue == null ? '' : String(lead.conversionValue),
+  }
+}
+
+export function normalizeConversionValue(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) {
+    return null
+  }
+  const normalized = Number(value)
+  return Number.isFinite(normalized) ? normalized : Number.NaN
+}
+
+export function hasConversionValueChanged(draft, currentValue) {
+  return !Object.is(
+    normalizeConversionValue(draft),
+    normalizeConversionValue(currentValue),
+  )
+}
+
+export function buildLeadStatusPatch({
+  currentStatus,
+  currentConversionValue,
+  status,
+  conversionValue,
+}) {
+  const statusChanged = status !== currentStatus
+  const conversionChanged = hasConversionValueChanged(
+    conversionValue,
+    currentConversionValue,
+  )
+  const conversionRequired = status === 'converted'
+  const normalizedConversion = normalizeConversionValue(conversionValue)
+  const conversionValid =
+    normalizedConversion !== null &&
+    Number.isFinite(normalizedConversion) &&
+    normalizedConversion >= 0
+
+  if (!statusChanged && !(conversionRequired && conversionChanged)) {
+    return { patch: null, error: '' }
+  }
+  if (conversionRequired && !conversionValid) {
+    return {
+      patch: null,
+      error: 'Enter a valid conversion value of zero or more.',
+    }
+  }
+
+  const patch = {}
+  if (statusChanged) patch.status = status
+  if (conversionRequired && (statusChanged || conversionChanged)) {
+    patch.conversion_value = normalizedConversion
+  }
+  return { patch, error: '' }
 }
 
 /**

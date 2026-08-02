@@ -13,6 +13,7 @@ import AppShell from '../components/layout/AppShell.vue'
 import AppAvatar from '../components/common/AppAvatar.vue'
 import AppBadge from '../components/common/AppBadge.vue'
 import AppButton from '../components/common/AppButton.vue'
+import LeadEditPanel from '../components/leads/LeadEditPanel.vue'
 import { useAppStore } from '../stores/app'
 const store = useAppStore()
 const route = useRoute()
@@ -22,29 +23,64 @@ const router = useRouter()
  * The list view may not have been visited (deep link, refresh), so fetch the
  * lead by id and fall back to the store copy while that is in flight.
  */
-const fetched = ref(null)
-const activities = ref([])
 const loading = ref(false)
+const loadError = ref('')
+const mutationError = ref('')
+const busyField = ref('')
+let loadRequestId = 0
 
 const lead = computed(
   () =>
-    fetched.value ||
+    (store.leadDetail?.id === route.params.id ? store.leadDetail : null) ||
     store.leads.find((currentLead) => currentLead.id === route.params.id),
+)
+const activities = computed(() =>
+  store.leadDetail?.id === route.params.id ? store.leadActivities : [],
+)
+const availableAgents = computed(() =>
+  store.agentId ? [{ id: store.agentId, name: store.agentName || store.agentId }] : [],
 )
 
 async function load(id) {
   if (!id) return
+  const requestId = ++loadRequestId
   loading.value = true
+  loadError.value = ''
   try {
-    const result = await store.loadLead(id)
-    if (result) {
-      fetched.value = result.lead
-      activities.value = result.activities
-    }
+    await store.refreshLeadDetail(id)
   } catch (error) {
-    store.notify(error.message || 'Failed to load lead', 'error')
+    if (requestId !== loadRequestId) return
+    loadError.value = error.message || 'Failed to load lead'
+    store.notify(loadError.value, 'error')
   } finally {
-    loading.value = false
+    if (requestId === loadRequestId) loading.value = false
+  }
+}
+
+async function handleUpdate({ kind, patch }) {
+  if (busyField.value) return
+  busyField.value = kind
+  mutationError.value = ''
+  try {
+    await store.updateLead(lead.value.id, patch)
+  } catch (error) {
+    mutationError.value = error.message || 'Failed to update lead'
+  } finally {
+    busyField.value = ''
+  }
+}
+
+async function handleAssignment({ agentId }) {
+  if (busyField.value) return
+  busyField.value = 'assignment'
+  mutationError.value = ''
+  try {
+    if (agentId) await store.assignLead(lead.value.id, agentId)
+    else await store.autoAssignLead(lead.value.id)
+  } catch (error) {
+    mutationError.value = error.message || 'Failed to assign lead'
+  } finally {
+    busyField.value = ''
   }
 }
 
@@ -58,7 +94,6 @@ function activityTone(type) {
   return ''
 }
 
-const statuses = ['new', 'contacted', 'qualified', 'converted', 'lost']
 </script>
 <template>
   <AppShell>
@@ -95,15 +130,10 @@ const statuses = ['new', 'contacted', 'qualified', 'converted', 'lost']
         <section class="card main">
           <h2>Lead overview</h2>
           <div class="fields">
-            <label class="field">
-              Status
-              <select
-                :value="lead.status"
-                @change="store.updateLeadStatus(lead.id, $event.target.value)"
-              >
-                <option v-for="s in statuses">{{ s }}</option>
-              </select>
-            </label>
+            <div>
+              <small>Status</small>
+              <AppBadge :tone="lead.status">{{ lead.status }}</AppBadge>
+            </div>
             <div>
               <small>Lead score</small>
               <strong class="score">
@@ -121,13 +151,26 @@ const statuses = ['new', 'contacted', 'qualified', 'converted', 'lost']
             </div>
           </div>
           <h3>Notes</h3>
-          <p>{{ lead.notes }}</p>
+          <p>{{ lead.notes || 'No notes yet.' }}</p>
+          <p v-if="mutationError" class="inline-error" role="alert">
+            {{ mutationError }}
+          </p>
+          <LeadEditPanel
+            :lead="lead"
+            :agents="availableAgents"
+            :busy-field="busyField"
+            @update="handleUpdate"
+            @assign="handleAssignment"
+          />
           <h3>Activity</h3>
           <ol v-if="activities.length">
             <li v-for="entry in activities" :key="entry.id">
               <i :class="activityTone(entry.type)" />
               {{ entry.description }}
-              <small>{{ entry.by }} · {{ entry.age }} ago</small>
+              <small>
+                {{ entry.by || 'Unknown actor' }}
+                <template v-if="entry.age"> · {{ entry.age }} ago</template>
+              </small>
             </li>
           </ol>
           <p v-else-if="loading" class="muted">Loading activity…</p>
@@ -169,6 +212,10 @@ const statuses = ['new', 'contacted', 'qualified', 'converted', 'lost']
           </div>
         </aside>
       </div>
+    </div>
+    <div v-else-if="loading" class="empty" role="status">Loading lead…</div>
+    <div v-else-if="loadError" class="empty error" role="alert">
+      {{ loadError }}
     </div>
     <div v-else class="empty">Lead not found.</div>
   </AppShell>
@@ -261,6 +308,10 @@ h3 {
   font-size: 13px;
   color: var(--text-2);
 }
+.inline-error,
+.error {
+  color: var(--danger);
+}
 ol {
   list-style: none;
   padding: 0;
@@ -330,6 +381,12 @@ hr {
   }
   .fields {
     grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 600px) {
+  .hero-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 </style>
