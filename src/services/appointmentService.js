@@ -1,5 +1,5 @@
 import { gatewayApi } from './gatewayApi'
-import { mapAppointment } from './mappers'
+import { mapAppointment, mapAvailability } from './mappers'
 
 /**
  * Bookings live in the Appointment service, reached through the gateway proxy.
@@ -7,6 +7,11 @@ import { mapAppointment } from './mappers'
  * callers must surface that rather than assume success.
  */
 export const appointmentService = {
+  async getAvailability({ businessId, date }) {
+    const result = await gatewayApi.getAvailability({ businessId, date })
+    return mapAvailability(result)
+  },
+
   async list(businessId) {
     const result = await gatewayApi.listAppointments(businessId)
     return (result.data || []).map(mapAppointment)

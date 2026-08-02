@@ -135,4 +135,56 @@ describe('gatewayApi integration (mock fetch)', () => {
       }),
     ).rejects.toThrow('FAQ endpoint unavailable')
   })
+
+  test('getAvailability sends an encoded GET request without a body', async () => {
+    const calls = []
+    const backendResponse = {
+      success: true,
+      data: {
+        businessId: 'biz/a & b',
+        date: '2026-08-05',
+        slots: [],
+      },
+    }
+    globalThis.fetch = async (url, options = {}) => {
+      calls.push({ url: String(url), options })
+      return Response.json(backendResponse)
+    }
+
+    const { gatewayApi } = await import(`./gatewayApi.js?t=${Date.now() + 4}`)
+    const result = await gatewayApi.getAvailability({
+      businessId: 'biz/a & b',
+      date: '2026-08-05',
+    })
+
+    const requestUrl = new URL(calls[0].url)
+    expect(requestUrl.pathname).toBe('/api/appointments/availability')
+    expect(requestUrl.searchParams.get('businessId')).toBe('biz/a & b')
+    expect(requestUrl.searchParams.get('date')).toBe('2026-08-05')
+    expect(calls[0].url).toContain('businessId=biz%2Fa+%26+b')
+    expect(calls[0].options.method || 'GET').toBe('GET')
+    expect(calls[0].options.body).toBeUndefined()
+    expect(result).toEqual(backendResponse)
+  })
+
+  test('appointment conflicts retain their HTTP 409 status', async () => {
+    const conflictBody = {
+      success: false,
+      message: 'The requested appointment time is not available.',
+    }
+    globalThis.fetch = async () =>
+      Response.json(conflictBody, { status: 409 })
+
+    const { gatewayApi } = await import(`./gatewayApi.js?t=${Date.now() + 5}`)
+    try {
+      await gatewayApi.createAppointment({})
+      throw new Error('Expected appointment creation to fail')
+    } catch (error) {
+      expect(error.status).toBe(409)
+      expect(error.message).toBe(
+        'The requested appointment time is not available.',
+      )
+      expect(error.body).toEqual(conflictBody)
+    }
+  })
 })

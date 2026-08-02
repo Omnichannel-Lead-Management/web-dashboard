@@ -17,8 +17,12 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message = body?.error || `Request failed (${response.status})`
-    throw new Error(message)
+    const message =
+      body?.message || body?.error || `Request failed (${response.status})`
+    const error = new Error(message)
+    error.status = response.status
+    error.body = body
+    throw error
   }
 
   return body
@@ -136,6 +140,11 @@ export const gatewayApi = {
   listAppointments(businessId) {
     const params = new URLSearchParams({ businessId })
     return request(`/api/appointments?${params}`)
+  },
+
+  getAvailability({ businessId, date }) {
+    const params = new URLSearchParams({ businessId, date })
+    return request(`/api/appointments/availability?${params}`)
   },
 
   createAppointment(payload) {

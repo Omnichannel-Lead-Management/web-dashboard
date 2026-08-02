@@ -245,6 +245,91 @@ export function mapAppointment(appointment) {
   }
 }
 
+export function mapAvailability(response) {
+  const data = response?.data
+  if (!data || typeof data !== 'object') {
+    return { businessId: '', date: '', slots: [] }
+  }
+
+  const slots = Array.isArray(data.slots)
+    ? data.slots.flatMap((slot) => {
+        if (
+          typeof slot?.startTime !== 'string' ||
+          typeof slot?.endTime !== 'string'
+        ) {
+          return []
+        }
+        const start = new Date(slot?.startTime)
+        const end = new Date(slot?.endTime)
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+          return []
+        }
+        return [
+          {
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            label: start.toLocaleTimeString([], {
+              hour: 'numeric',
+              minute: '2-digit',
+            }),
+          },
+        ]
+      })
+    : []
+
+  return {
+    businessId:
+      typeof data.businessId === 'string' ? data.businessId : '',
+    date: typeof data.date === 'string' ? data.date : '',
+    slots,
+  }
+}
+
+export function selectAppointmentSlot(form, slot) {
+  return {
+    ...form,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+  }
+}
+
+export function clearAppointmentSlot(form) {
+  return { ...form, startTime: '', endTime: '' }
+}
+
+export function isAvailabilityRequestCurrent({
+  requestDate,
+  selectedDate,
+  requestId,
+  latestRequestId,
+}) {
+  return requestDate === selectedDate && requestId === latestRequestId
+}
+
+export function isAppointmentSubmissionReady(
+  form,
+  { availabilityLoading = false, submitting = false } = {},
+) {
+  return Boolean(
+    form.customer?.trim() &&
+      form.service &&
+      form.date &&
+      form.startTime &&
+      form.endTime &&
+      !availabilityLoading &&
+      !submitting,
+  )
+}
+
+export function isAvailabilityFullyBooked({
+  date,
+  slots,
+  loading = false,
+  error = '',
+}) {
+  return Boolean(date && !loading && !error && slots.length === 0)
+}
+
 export function appointmentStatusActions(status) {
   if (status === 'pending') return ['confirmed', 'cancelled']
   if (status === 'confirmed') return ['completed', 'cancelled']
@@ -296,6 +381,24 @@ export function splitAppointmentsByTime(appointments, now = Date.now()) {
  * from drifting silently, since a mismatch is a 400 rather than a wrong booking.
  */
 export function toAppointmentPayload(form, businessId) {
+  const selectedStart = new Date(form.startTime)
+  const selectedEnd = new Date(form.endTime)
+  if (
+    form.startTime &&
+    form.endTime &&
+    !Number.isNaN(selectedStart.getTime()) &&
+    !Number.isNaN(selectedEnd.getTime())
+  ) {
+    return {
+      businessId,
+      customerName: form.customer,
+      service: form.service,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      notes: form.notes || undefined,
+    }
+  }
+
   const [rawHour, rawMinute = '0'] = String(form.time || '').split(':')
   let hour = Number(rawHour)
   if (form.ampm === 'PM' && hour < 12) hour += 12

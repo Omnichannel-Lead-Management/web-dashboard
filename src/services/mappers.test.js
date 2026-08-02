@@ -6,6 +6,12 @@ import {
   mapLead,
   mapLeadActivity,
   mapAppointment,
+  mapAvailability,
+  selectAppointmentSlot,
+  clearAppointmentSlot,
+  isAvailabilityRequestCurrent,
+  isAppointmentSubmissionReady,
+  isAvailabilityFullyBooked,
   appointmentStatusActions,
   filterAppointmentsByStatus,
   splitAppointmentsByTime,
@@ -308,6 +314,22 @@ describe('appointment presentation helpers', () => {
 })
 
 describe('toAppointmentPayload unit', () => {
+  test('preserves the exact backend-selected slot times', () => {
+    const payload = toAppointmentPayload(
+      {
+        customer: 'Customer',
+        service: 'Service',
+        date: '2026-08-05',
+        startTime: '2026-08-05T09:00:00.000Z',
+        endTime: '2026-08-05T09:30:00.000Z',
+        notes: 'Prepare room 2',
+      },
+      'biz_1',
+    )
+    expect(payload.startTime).toBe('2026-08-05T09:00:00.000Z')
+    expect(payload.endTime).toBe('2026-08-05T09:30:00.000Z')
+  })
+
   test('converts the form 12-hour time and duration into an ISO range', () => {
     const payload = toAppointmentPayload(
       {
@@ -360,6 +382,128 @@ describe('toAppointmentPayload unit', () => {
       'biz_1',
     )
     expect(new Date(payload.startTime).getHours()).toBe(12)
+  })
+})
+
+describe('availability mapper and form helpers', () => {
+  test('normalizes valid slots without mutating the response', () => {
+    const response = {
+      success: true,
+      data: {
+        businessId: 'biz_x',
+        date: '2026-08-05',
+        slots: [
+          {
+            startTime: '2026-08-05T09:00:00.000Z',
+            endTime: '2026-08-05T09:30:00.000Z',
+          },
+        ],
+      },
+    }
+    const snapshot = structuredClone(response)
+    const mapped = mapAvailability(response)
+
+    expect(mapped.businessId).toBe('biz_x')
+    expect(mapped.date).toBe('2026-08-05')
+    expect(mapped.slots[0].startTime).toBe('2026-08-05T09:00:00.000Z')
+    expect(mapped.slots[0].endTime).toBe('2026-08-05T09:30:00.000Z')
+    expect(mapped.slots[0].label).toBeTruthy()
+    expect(response).toEqual(snapshot)
+  })
+
+  test('handles empty, missing, and malformed availability data', () => {
+    expect(
+      mapAvailability({
+        success: true,
+        data: { businessId: 'biz_x', date: '2026-08-05', slots: [] },
+      }).slots,
+    ).toEqual([])
+    expect(mapAvailability({ success: true })).toEqual({
+      businessId: '',
+      date: '',
+      slots: [],
+    })
+    expect(mapAvailability(null)).toEqual({
+      businessId: '',
+      date: '',
+      slots: [],
+    })
+  })
+
+  test('ignores slots with invalid or missing timestamps', () => {
+    const mapped = mapAvailability({
+      data: {
+        slots: [
+          { startTime: 'bad', endTime: '2026-08-05T09:30:00.000Z' },
+          { startTime: '2026-08-05T10:00:00.000Z' },
+          {
+            startTime: '2026-08-05T11:00:00.000Z',
+            endTime: '2026-08-05T11:30:00.000Z',
+          },
+        ],
+      },
+    })
+    expect(mapped.slots).toHaveLength(1)
+    expect(mapped.slots[0].startTime).toBe('2026-08-05T11:00:00.000Z')
+  })
+
+  test('slot selection assigns exact times and date clearing removes them', () => {
+    const form = { customer: 'Customer', date: '2026-08-05' }
+    const selected = selectAppointmentSlot(form, {
+      startTime: '2026-08-05T09:00:00.000Z',
+      endTime: '2026-08-05T09:30:00.000Z',
+    })
+    expect(selected.startTime).toBe('2026-08-05T09:00:00.000Z')
+    expect(selected.endTime).toBe('2026-08-05T09:30:00.000Z')
+    expect(clearAppointmentSlot(selected)).toEqual({
+      customer: 'Customer',
+      date: '2026-08-05',
+      startTime: '',
+      endTime: '',
+    })
+  })
+
+  test('detects stale requests, fully booked dates, and submission readiness', () => {
+    expect(
+      isAvailabilityRequestCurrent({
+        requestDate: '2026-08-06',
+        selectedDate: '2026-08-06',
+        requestId: 2,
+        latestRequestId: 2,
+      }),
+    ).toBe(true)
+    expect(
+      isAvailabilityRequestCurrent({
+        requestDate: '2026-08-05',
+        selectedDate: '2026-08-06',
+        requestId: 1,
+        latestRequestId: 2,
+      }),
+    ).toBe(false)
+    expect(
+      isAvailabilityFullyBooked({
+        date: '2026-08-05',
+        slots: [],
+      }),
+    ).toBe(true)
+    expect(
+      isAppointmentSubmissionReady({
+        customer: 'Customer',
+        service: 'Service',
+        date: '2026-08-05',
+        startTime: '',
+        endTime: '',
+      }),
+    ).toBe(false)
+    expect(
+      isAppointmentSubmissionReady({
+        customer: 'Customer',
+        service: 'Service',
+        date: '2026-08-05',
+        startTime: '2026-08-05T09:00:00.000Z',
+        endTime: '2026-08-05T09:30:00.000Z',
+      }),
+    ).toBe(true)
   })
 })
 
