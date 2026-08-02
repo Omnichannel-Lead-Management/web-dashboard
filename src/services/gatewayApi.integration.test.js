@@ -271,4 +271,55 @@ describe('gatewayApi integration (mock fetch)', () => {
       expect(error.status).toBe(400)
     }
   })
+
+  test('chatbot config methods use encoded gateway paths and partial bodies', async () => {
+    const calls = []
+    globalThis.fetch = async (url, options = {}) => {
+      calls.push({ url: String(url), options })
+      return Response.json({
+        success: true,
+        config: { business_id: 'biz/a', chatbot_enabled: false },
+      })
+    }
+    const { gatewayApi } = await import(`./gatewayApi.js?t=${Date.now() + 8}`)
+
+    await gatewayApi.getChatbotConfig('biz/a')
+    await gatewayApi.updateChatbotConfig('biz/a', {
+      chatbot_enabled: false,
+    })
+    await gatewayApi.updateChatbotConfig('biz/a', {
+      welcome_message: 'Hello',
+      escalation_message: 'Please wait',
+    })
+
+    expect(new URL(calls[0].url).pathname).toBe(
+      '/api/businesses/biz%2Fa/config',
+    )
+    expect(calls[0].options.method || 'GET').toBe('GET')
+    expect(calls[0].options.body).toBeUndefined()
+    expect(calls[1].options.method).toBe('PATCH')
+    expect(JSON.parse(calls[1].options.body)).toEqual({
+      chatbot_enabled: false,
+    })
+    expect(JSON.parse(calls[2].options.body)).toEqual({
+      welcome_message: 'Hello',
+      escalation_message: 'Please wait',
+    })
+  })
+
+  test('chatbot config errors preserve message, status and body', async () => {
+    const responseBody = { success: false, message: 'Config proxy unavailable' }
+    globalThis.fetch = async () =>
+      Response.json(responseBody, { status: 503 })
+    const { gatewayApi } = await import(`./gatewayApi.js?t=${Date.now() + 9}`)
+
+    try {
+      await gatewayApi.getChatbotConfig('biz_1')
+      throw new Error('Expected config request to fail')
+    } catch (error) {
+      expect(error.message).toBe('Config proxy unavailable')
+      expect(error.status).toBe(503)
+      expect(error.body).toEqual(responseBody)
+    }
+  })
 })

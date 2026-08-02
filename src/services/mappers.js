@@ -104,6 +104,51 @@ export function faqEditorDraft(faq = {}) {
   }
 }
 
+function configBoolean(value, fallback = true) {
+  if (value === true || value === 1 || value === '1') return true
+  if (value === false || value === 0 || value === '0') return false
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  return fallback
+}
+
+/** chatbot-builder business config -> stable settings state. */
+export function mapChatbotConfig(response = {}) {
+  const source = response?.config ?? response
+  return {
+    businessId: source?.business_id ?? source?.businessId ?? '',
+    chatbotEnabled: configBoolean(
+      source?.chatbot_enabled ?? source?.chatbotEnabled,
+      true,
+    ),
+    welcomeMessage: String(
+      source?.welcome_message ?? source?.welcomeMessage ?? '',
+    ),
+    escalationMessage: String(
+      source?.escalation_message ?? source?.escalationMessage ?? '',
+    ),
+    updatedAt: faqTimestamp(source?.updated_at ?? source?.updatedAt),
+  }
+}
+
+/** Settings draft -> partial chatbot-builder PATCH contract. */
+export function toChatbotConfigPatch(changes = {}) {
+  const patch = {}
+  if ('chatbotEnabled' in changes) {
+    patch.chatbot_enabled = Boolean(changes.chatbotEnabled)
+  }
+  if ('welcomeMessage' in changes) {
+    patch.welcome_message = String(changes.welcomeMessage ?? '').trim()
+  }
+  if ('escalationMessage' in changes) {
+    patch.escalation_message = String(changes.escalationMessage ?? '').trim()
+  }
+  return patch
+}
+
 export function conversationId(platform, messengerId) {
   return `${platform}:${messengerId}`
 }

@@ -12,6 +12,7 @@ import {
 import AppShell from '../components/layout/AppShell.vue'
 import SettingsNavigation from '../components/settings/SettingsNavigation.vue'
 import FaqManager from '../components/settings/FaqManager.vue'
+import ChatbotSettings from '../components/settings/ChatbotSettings.vue'
 import AppButton from '../components/common/AppButton.vue'
 import AppBadge from '../components/common/AppBadge.vue'
 import { gatewayApi } from '../services/gatewayApi'
@@ -33,8 +34,6 @@ const businessProfile = reactive({
   phone: '',
   description: '',
 })
-const welcomeMessage = ref('')
-const escalationMessage = ref('')
 
 async function loadBusiness() {
   if (!store.businessId) return
@@ -226,48 +225,7 @@ async function connectTelegramBot() {
             </AppButton>
           </template>
           <template v-else-if="activeSection === 'chatbot'">
-            <h2>Chatbot settings</h2>
-            <p class="intro">
-              Let Loop answer common questions and qualify leads automatically.
-            </p>
-            <div class="toggle-row">
-              <div>
-                <b>Automatic replies</b>
-                <small>Reply instantly using your business information.</small>
-              </div>
-              <button
-                role="switch"
-                :aria-checked="store.chatbotEnabled"
-                class="toggle"
-                :class="{ on: store.chatbotEnabled }"
-                @click="store.toggleChatbot"
-              >
-                <i />
-              </button>
-            </div>
-            <label class="field">
-              Welcome message
-              <textarea
-                v-model="welcomeMessage"
-                rows="3"
-                placeholder="Enter the greeting customers should receive"
-              />
-            </label>
-            <label class="field">
-              Escalation message
-              <textarea
-                v-model="escalationMessage"
-                rows="3"
-                placeholder="Enter the message shown before a human handoff"
-              />
-            </label>
-            <!-- Persistence will be enabled when the gateway config API is available. -->
-            <AppButton
-              disabled
-              title="Chatbot message persistence is not available yet"
-            >
-              Save changes
-            </AppButton>
+            <ChatbotSettings :business-name="store.businessName" />
           </template>
           <template v-else-if="activeSection === 'faqs'">
             <FaqManager :sector="business?.sector || businessProfile.sector" />

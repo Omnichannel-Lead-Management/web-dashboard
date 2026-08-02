@@ -11,6 +11,8 @@ import {
   mapAppointment,
   mapFaq,
   toFaqPayload,
+  mapChatbotConfig,
+  toChatbotConfigPatch,
   toAppointmentPayload,
   conversationId,
   parseConversationId,
@@ -49,7 +51,17 @@ export const useAppStore = defineStore('app', () => {
   const inboxView = ref(
     localStorage.getItem(STORAGE.inboxView) || 'conversation',
   )
-  const chatbotEnabled = ref(localStorage.getItem(STORAGE.chatbot) !== 'false')
+  const cachedChatbotEnabled = localStorage.getItem(STORAGE.chatbot) !== 'false'
+  const chatbotConfig = ref({
+    businessId: '',
+    chatbotEnabled: cachedChatbotEnabled,
+    welcomeMessage: '',
+    escalationMessage: '',
+    updatedAt: null,
+  })
+  const loadingChatbotConfig = ref(false)
+  const chatbotConfigError = ref('')
+  const savingChatbotConfig = ref(false)
   const conversations = ref([])
   const messages = ref({})
   const leads = ref([])
@@ -73,6 +85,9 @@ export const useAppStore = defineStore('app', () => {
   let faqSessionVersion = 0
   let faqListRequestId = 0
   const activeFaqMutations = new Set()
+  let chatbotConfigSessionVersion = 0
+  let chatbotConfigRequestId = 0
+  const activeChatbotConfigMutations = new Set()
   const selectedConversationId = ref('')
   const toast = ref(null)
   const connectionStatus = ref('offline')
@@ -476,6 +491,9 @@ export const useAppStore = defineStore('app', () => {
     faqSessionVersion += 1
     faqListRequestId += 1
     activeFaqMutations.clear()
+    chatbotConfigSessionVersion += 1
+    chatbotConfigRequestId += 1
+    activeChatbotConfigMutations.clear()
     leads.value = []
     leadDetail.value = null
     leadActivities.value = []
@@ -486,18 +504,23 @@ export const useAppStore = defineStore('app', () => {
     faqs.value = []
     faqError.value = ''
     loadingFaqs.value = false
+    chatbotConfig.value = {
+      businessId: '',
+      chatbotEnabled: true,
+      welcomeMessage: '',
+      escalationMessage: '',
+      updatedAt: null,
+    }
+    chatbotConfigError.value = ''
+    loadingChatbotConfig.value = false
+    savingChatbotConfig.value = false
+    localStorage.removeItem(STORAGE.chatbot)
     appointments.value = []
   }
 
   function setInboxView(view) {
     inboxView.value = view
     localStorage.setItem(STORAGE.inboxView, view)
-  }
-
-  function toggleChatbot() {
-    chatbotEnabled.value = !chatbotEnabled.value
-    localStorage.setItem(STORAGE.chatbot, String(chatbotEnabled.value))
-    notify(`Chatbot ${chatbotEnabled.value ? 'enabled' : 'disabled'}`)
   }
 
   function claim(id) {
@@ -886,6 +909,142 @@ export const useAppStore = defineStore('app', () => {
     return result
   }
 
+  async function refreshChatbotConfig() {
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
+    }
+    const sessionVersion = chatbotConfigSessionVersion
+    const requestBusinessId = businessId.value
+    const requestId = ++chatbotConfigRequestId
+    loadingChatbotConfig.value = true
+    chatbotConfigError.value = ''
+    try {
+      const result = await gatewayApi.getChatbotConfig(requestBusinessId)
+      if (
+        requestId !== chatbotConfigRequestId ||
+        sessionVersion !== chatbotConfigSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return null
+      if (!result?.config || typeof result.config !== 'object') {
+        throw new Error('Gateway returned an invalid chatbot config response')
+      }
+      const mapped = mapChatbotConfig(result.config)
+      chatbotConfig.value = mapped
+      localStorage.setItem(STORAGE.chatbot, String(mapped.chatbotEnabled))
+      return mapped
+    } catch (error) {
+      if (
+        requestId !== chatbotConfigRequestId ||
+        sessionVersion !== chatbotConfigSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return null
+      chatbotConfigError.value =
+        error.message || 'Failed to load chatbot settings'
+      notify(chatbotConfigError.value, 'error')
+      throw error
+    } finally {
+      if (
+        requestId === chatbotConfigRequestId &&
+        sessionVersion === chatbotConfigSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) loadingChatbotConfig.value = false
+    }
+  }
+
+  async function patchChatbotConfig(
+    changes,
+    { successMessage, optimisticConfig = null, previousCache = null } = {},
+  ) {
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
+    }
+    const sessionVersion = chatbotConfigSessionVersion
+    const requestBusinessId = businessId.value
+    const mutationKey = `${sessionVersion}:${requestBusinessId}:config`
+    if (activeChatbotConfigMutations.has(mutationKey)) {
+      throw new Error('Chatbot settings are already being saved')
+    }
+    activeChatbotConfigMutations.add(mutationKey)
+    const previousConfig = { ...chatbotConfig.value }
+    if (optimisticConfig) chatbotConfig.value = optimisticConfig
+    savingChatbotConfig.value = true
+    try {
+      const result = await gatewayApi.updateChatbotConfig(
+        requestBusinessId,
+        toChatbotConfigPatch(changes),
+      )
+      if (!result?.config || typeof result.config !== 'object') {
+        throw new Error('Gateway returned an invalid chatbot config response')
+      }
+      const mapped = mapChatbotConfig(result.config)
+      if (
+        sessionVersion !== chatbotConfigSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return mapped
+      chatbotConfigRequestId += 1
+      loadingChatbotConfig.value = false
+      chatbotConfig.value = mapped
+      localStorage.setItem(STORAGE.chatbot, String(mapped.chatbotEnabled))
+      notify(successMessage)
+      return mapped
+    } catch (error) {
+      if (
+        sessionVersion === chatbotConfigSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) {
+        if (optimisticConfig) {
+          chatbotConfig.value = previousConfig
+          if (previousCache === null) localStorage.removeItem(STORAGE.chatbot)
+          else localStorage.setItem(STORAGE.chatbot, previousCache)
+        }
+        notify(error.message || 'Failed to save chatbot settings', 'error')
+      }
+      throw error
+    } finally {
+      activeChatbotConfigMutations.delete(mutationKey)
+      if (
+        sessionVersion === chatbotConfigSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) savingChatbotConfig.value = false
+    }
+  }
+
+  async function updateChatbotEnabled(enabled) {
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
+    }
+    const mutationKey = `${chatbotConfigSessionVersion}:${businessId.value}:config`
+    if (activeChatbotConfigMutations.has(mutationKey)) {
+      throw new Error('Chatbot settings are already being saved')
+    }
+    const previousCache = localStorage.getItem(STORAGE.chatbot)
+    const optimisticConfig = {
+      ...chatbotConfig.value,
+      chatbotEnabled: Boolean(enabled),
+    }
+    localStorage.setItem(STORAGE.chatbot, String(Boolean(enabled)))
+    return patchChatbotConfig(
+      { chatbotEnabled: Boolean(enabled) },
+      {
+        successMessage: `Chatbot ${enabled ? 'enabled' : 'disabled'}`,
+        optimisticConfig,
+        previousCache,
+      },
+    )
+  }
+
+  async function saveChatbotMessages(messages) {
+    return patchChatbotConfig(messages, {
+      successMessage: 'Chatbot messages saved',
+    })
+  }
+
   async function refreshFaqs() {
     if (!authenticated.value || !businessId.value) {
       throw new Error('No active business session')
@@ -1075,7 +1234,10 @@ export const useAppStore = defineStore('app', () => {
   return {
     authenticated,
     inboxView,
-    chatbotEnabled,
+    chatbotConfig,
+    loadingChatbotConfig,
+    chatbotConfigError,
+    savingChatbotConfig,
     conversations,
     messages,
     leads,
@@ -1104,7 +1266,9 @@ export const useAppStore = defineStore('app', () => {
     registerBusiness,
     logout,
     setInboxView,
-    toggleChatbot,
+    refreshChatbotConfig,
+    updateChatbotEnabled,
+    saveChatbotMessages,
     claim,
     release,
     sendMessage,

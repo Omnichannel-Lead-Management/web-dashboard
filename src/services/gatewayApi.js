@@ -88,6 +88,22 @@ export const gatewayApi = {
     })
   },
 
+  getChatbotConfig(businessId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/config`,
+    )
+  },
+
+  updateChatbotConfig(businessId, patch) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/config`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(patch),
+      },
+    )
+  },
+
   getMessagingHistory({ messenger_id, platform, limit = 50 }) {
     const params = new URLSearchParams({
       messenger_id,

@@ -28,6 +28,8 @@ import {
   toFaqPayload,
   faqEditorDraft,
   faqPayloadWithPendingKeyword,
+  mapChatbotConfig,
+  toChatbotConfigPatch,
 } from './mappers.js'
 import { gatewayWsUrl } from '../config.js'
 
@@ -163,6 +165,59 @@ describe('mappers unit', () => {
     draft.keywords.push('changed')
     expect(source.keywords).toEqual(['hours'])
     expect(faqEditorDraft().keywordInput).toBe('')
+  })
+
+  test('maps chatbot config fields, false, null messages and epoch seconds', () => {
+    const source = {
+      success: true,
+      config: {
+        business_id: 'biz_1',
+        chatbot_enabled: false,
+        welcome_message: null,
+        escalation_message: null,
+        updated_at: 1_754_042_400,
+      },
+    }
+    const snapshot = structuredClone(source)
+    expect(mapChatbotConfig(source)).toEqual({
+      businessId: 'biz_1',
+      chatbotEnabled: false,
+      welcomeMessage: '',
+      escalationMessage: '',
+      updatedAt: 1_754_042_400_000,
+    })
+    expect(source).toEqual(snapshot)
+  })
+
+  test('chatbot config supports boolean-like values and timestamp forms', () => {
+    expect(mapChatbotConfig({ chatbot_enabled: 'false', updated_at: 0 })).toEqual({
+      businessId: '',
+      chatbotEnabled: false,
+      welcomeMessage: '',
+      escalationMessage: '',
+      updatedAt: 0,
+    })
+    expect(
+      mapChatbotConfig({ chatbot_enabled: '1', updated_at: 1_754_042_400_000 }),
+    ).toMatchObject({ chatbotEnabled: true, updatedAt: 1_754_042_400_000 })
+    expect(
+      mapChatbotConfig({ updated_at: '2026-08-03T10:00:00.000Z' }).updatedAt,
+    ).toBe(Date.parse('2026-08-03T10:00:00.000Z'))
+  })
+
+  test('chatbot config patches remain partial, trimmed and preserve false', () => {
+    expect(toChatbotConfigPatch({ chatbotEnabled: false })).toEqual({
+      chatbot_enabled: false,
+    })
+    expect(
+      toChatbotConfigPatch({
+        welcomeMessage: '  Hello  ',
+        escalationMessage: '   ',
+      }),
+    ).toEqual({
+      welcome_message: 'Hello',
+      escalation_message: '',
+    })
   })
 
   test('conversationId and parseConversationId round-trip', () => {
