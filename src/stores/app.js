@@ -86,6 +86,7 @@ export const useAppStore = defineStore('app', () => {
   let faqListRequestId = 0
   const activeFaqMutations = new Set()
   let chatbotConfigSessionVersion = 0
+  let businessSessionVersion = 0
   let chatbotConfigRequestId = 0
   const activeChatbotConfigMutations = new Set()
   const selectedConversationId = ref('')
@@ -109,6 +110,7 @@ export const useAppStore = defineStore('app', () => {
       DEFAULT_WORKSPACE.name ||
       'My Business',
   )
+  const business = ref(null)
   const agentId = ref(localStorage.getItem(STORAGE.agentId) || 'agent_demo')
   const agentName = ref(localStorage.getItem(STORAGE.agentName) || 'Agent')
   const loadingInbox = ref(false)
@@ -433,6 +435,7 @@ export const useAppStore = defineStore('app', () => {
     if (businessId.value) {
       try {
         const existing = await gatewayApi.getBusiness(businessId.value)
+        business.value = existing.business || null
         businessName.value = existing.business?.name || name
         persistSession()
         return existing.business
@@ -448,6 +451,7 @@ export const useAppStore = defineStore('app', () => {
     })
     businessId.value = created.business.id
     businessName.value = created.business.name
+    business.value = created.business
     persistSession()
     return created.business
   }
@@ -470,6 +474,7 @@ export const useAppStore = defineStore('app', () => {
     })
     businessId.value = created.business.id
     businessName.value = created.business.name
+    business.value = created.business
     agentName.value = form.owner?.split(' ')[0] || 'Owner'
     agentId.value = `agent_${Date.now().toString(36)}`
     authenticated.value = true
@@ -492,6 +497,7 @@ export const useAppStore = defineStore('app', () => {
     faqListRequestId += 1
     activeFaqMutations.clear()
     chatbotConfigSessionVersion += 1
+    businessSessionVersion += 1
     chatbotConfigRequestId += 1
     activeChatbotConfigMutations.clear()
     leads.value = []
@@ -501,6 +507,7 @@ export const useAppStore = defineStore('app', () => {
     leadDetailError.value = ''
     loadingLeads.value = false
     loadingLeadDetail.value = false
+    business.value = null
     faqs.value = []
     faqError.value = ''
     loadingFaqs.value = false
@@ -584,7 +591,8 @@ export const useAppStore = defineStore('app', () => {
         requestId !== leadListRequestId ||
         sessionVersion !== leadSessionVersion.value ||
         businessId.value !== requestBusinessId
-      ) return null
+      )
+        return null
       leads.value = result
       return result
     } catch (error) {
@@ -592,7 +600,8 @@ export const useAppStore = defineStore('app', () => {
         requestId !== leadListRequestId ||
         sessionVersion !== leadSessionVersion.value ||
         businessId.value !== requestBusinessId
-      ) return null
+      )
+        return null
       leadListError.value = error.message || 'Failed to load leads'
       notify(error.message || 'Failed to load leads', 'error')
       return null
@@ -601,7 +610,8 @@ export const useAppStore = defineStore('app', () => {
         requestId === leadListRequestId &&
         sessionVersion === leadSessionVersion.value &&
         businessId.value === requestBusinessId
-      ) loadingLeads.value = false
+      )
+        loadingLeads.value = false
     }
   }
 
@@ -623,7 +633,8 @@ export const useAppStore = defineStore('app', () => {
         requestId !== leadDetailRequestId ||
         sessionVersion !== leadSessionVersion.value ||
         businessId.value !== requestBusinessId
-      ) return null
+      )
+        return null
       leadDetail.value = result.lead
       leadActivities.value = result.activities
       const index = leads.value.findIndex((lead) => lead.id === id)
@@ -634,7 +645,8 @@ export const useAppStore = defineStore('app', () => {
         requestId !== leadDetailRequestId ||
         sessionVersion !== leadSessionVersion.value ||
         businessId.value !== requestBusinessId
-      ) return null
+      )
+        return null
       leadDetailError.value = error.message || 'Failed to load lead'
       throw error
     } finally {
@@ -642,7 +654,8 @@ export const useAppStore = defineStore('app', () => {
         requestId === leadDetailRequestId &&
         sessionVersion === leadSessionVersion.value &&
         businessId.value === requestBusinessId
-      ) loadingLeadDetail.value = false
+      )
+        loadingLeadDetail.value = false
     }
   }
 
@@ -662,7 +675,8 @@ export const useAppStore = defineStore('app', () => {
           sessionVersion !== leadSessionVersion.value ||
           businessId.value !== streamBusinessId ||
           !authenticated.value
-        ) return
+        )
+          return
         const incoming = mapLead(JSON.parse(event.data))
         const index = leads.value.findIndex((item) => item.id === incoming.id)
         if (index === -1) leads.value.unshift(incoming)
@@ -732,7 +746,8 @@ export const useAppStore = defineStore('app', () => {
         !silent &&
         sessionVersion === leadSessionVersion.value &&
         businessId.value === requestBusinessId
-      ) notify(error.message || 'Failed to update lead', 'error')
+      )
+        notify(error.message || 'Failed to update lead', 'error')
       activeLeadMutations.delete(mutationKey)
       throw error
     }
@@ -750,7 +765,8 @@ export const useAppStore = defineStore('app', () => {
         !silent &&
         sessionVersion === leadSessionVersion.value &&
         businessId.value === requestBusinessId
-      ) notify(leadUpdateMessage(patch))
+      )
+        notify(leadUpdateMessage(patch))
       return refreshed?.lead || updated
     } catch {
       if (
@@ -802,7 +818,8 @@ export const useAppStore = defineStore('app', () => {
         !silent &&
         sessionVersion === leadSessionVersion.value &&
         businessId.value === requestBusinessId
-      ) notify(error.message || 'Failed to assign lead', 'error')
+      )
+        notify(error.message || 'Failed to assign lead', 'error')
       activeLeadMutations.delete(mutationKey)
       throw error
     }
@@ -811,13 +828,15 @@ export const useAppStore = defineStore('app', () => {
       if (
         sessionVersion !== leadSessionVersion.value ||
         businessId.value !== requestBusinessId
-      ) return updated
+      )
+        return updated
       const refreshed = await refreshLeadDetail(id)
       if (
         !silent &&
         sessionVersion === leadSessionVersion.value &&
         businessId.value === requestBusinessId
-      ) notify('Lead assignment updated')
+      )
+        notify('Lead assignment updated')
       return refreshed?.lead || updated
     } catch {
       if (
@@ -909,6 +928,26 @@ export const useAppStore = defineStore('app', () => {
     return result
   }
 
+  async function refreshBusiness() {
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
+    }
+    const requestBusinessId = businessId.value
+    const sessionVersion = businessSessionVersion
+    const result = await gatewayApi.getBusiness(requestBusinessId)
+    if (
+      !authenticated.value ||
+      sessionVersion !== businessSessionVersion ||
+      businessId.value !== requestBusinessId ||
+      !result?.business
+    )
+      return null
+    business.value = result.business
+    businessName.value = result.business.name || businessName.value
+    persistSession()
+    return business.value
+  }
+
   async function refreshChatbotConfig() {
     if (!authenticated.value || !businessId.value) {
       throw new Error('No active business session')
@@ -925,7 +964,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== chatbotConfigSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return null
+      )
+        return null
       if (!result?.config || typeof result.config !== 'object') {
         throw new Error('Gateway returned an invalid chatbot config response')
       }
@@ -939,7 +979,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== chatbotConfigSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return null
+      )
+        return null
       chatbotConfigError.value =
         error.message || 'Failed to load chatbot settings'
       notify(chatbotConfigError.value, 'error')
@@ -950,7 +991,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion === chatbotConfigSessionVersion &&
         businessId.value === requestBusinessId &&
         authenticated.value
-      ) loadingChatbotConfig.value = false
+      )
+        loadingChatbotConfig.value = false
     }
   }
 
@@ -984,7 +1026,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== chatbotConfigSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return mapped
+      )
+        return mapped
       chatbotConfigRequestId += 1
       loadingChatbotConfig.value = false
       chatbotConfig.value = mapped
@@ -1011,7 +1054,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion === chatbotConfigSessionVersion &&
         businessId.value === requestBusinessId &&
         authenticated.value
-      ) savingChatbotConfig.value = false
+      )
+        savingChatbotConfig.value = false
     }
   }
 
@@ -1061,7 +1105,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== faqSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return null
+      )
+        return null
       if (!Array.isArray(result?.faqs)) {
         throw new Error('Gateway returned an invalid FAQ list response')
       }
@@ -1073,7 +1118,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== faqSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return null
+      )
+        return null
       faqError.value = error.message || 'Failed to load FAQs'
       notify(faqError.value, 'error')
       throw error
@@ -1083,7 +1129,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion === faqSessionVersion &&
         businessId.value === requestBusinessId &&
         authenticated.value
-      ) loadingFaqs.value = false
+      )
+        loadingFaqs.value = false
     }
   }
 
@@ -1116,7 +1163,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== faqSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return created
+      )
+        return created
       invalidateFaqListRequests()
       faqs.value.unshift(created)
       notify('FAQ created')
@@ -1126,7 +1174,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion === faqSessionVersion &&
         businessId.value === requestBusinessId &&
         authenticated.value
-      ) notify(error.message || 'FAQ could not be created', 'error')
+      )
+        notify(error.message || 'FAQ could not be created', 'error')
       throw error
     } finally {
       activeFaqMutations.delete(mutationKey)
@@ -1163,7 +1212,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== faqSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return updated
+      )
+        return updated
       invalidateFaqListRequests()
       const currentIndex = faqs.value.findIndex((faq) => faq.id === faqId)
       if (currentIndex >= 0) faqs.value[currentIndex] = updated
@@ -1208,7 +1258,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== faqSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return
+      )
+        return
       invalidateFaqListRequests()
       faqs.value = faqs.value.filter((faq) => faq.id !== faqId)
       notify('FAQ deleted')
@@ -1217,7 +1268,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion === faqSessionVersion &&
         businessId.value === requestBusinessId &&
         authenticated.value
-      ) notify(error.message || 'FAQ could not be deleted', 'error')
+      )
+        notify(error.message || 'FAQ could not be deleted', 'error')
       throw error
     } finally {
       activeFaqMutations.delete(mutationKey)
@@ -1250,6 +1302,7 @@ export const useAppStore = defineStore('app', () => {
     connectionStatus,
     businessId,
     businessName,
+    business,
     agentId,
     agentName,
     loadingInbox,
@@ -1285,6 +1338,7 @@ export const useAppStore = defineStore('app', () => {
     refreshConversations,
     loadHistory,
     connectTelegram,
+    refreshBusiness,
     refreshFaqs,
     createFaq,
     updateFaq,

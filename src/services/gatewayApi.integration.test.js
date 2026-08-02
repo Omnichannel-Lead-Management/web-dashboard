@@ -6,6 +6,52 @@ import { describe, expect, test } from 'bun:test'
  * against a local mock fetch.
  */
 describe('gatewayApi integration (mock fetch)', () => {
+  test('WhatsApp methods use encoded gateway URLs and the correct methods', async () => {
+    const calls = []
+    globalThis.fetch = async (url, options = {}) => {
+      calls.push({ url: String(url), options })
+      return Response.json({ success: true })
+    }
+
+    const { gatewayApi } = await import(`./gatewayApi.js?t=wa-${Date.now()}`)
+    await gatewayApi.connectWhatsApp('biz/a & b')
+    await gatewayApi.getWhatsAppQr('biz/a & b')
+    await gatewayApi.getWhatsAppStatus('biz/a & b')
+
+    expect(calls.map((call) => call.options.method || 'GET')).toEqual([
+      'POST',
+      'GET',
+      'GET',
+    ])
+    expect(calls[0].url).toContain(
+      '/api/businesses/biz%2Fa%20%26%20b/channels/whatsapp-evolution',
+    )
+    expect(calls[1].url).toContain(
+      '/api/businesses/biz%2Fa%20%26%20b/channels/whatsapp-evolution/qrcode',
+    )
+    expect(calls[2].url).toContain(
+      '/api/businesses/biz%2Fa%20%26%20b/channels/whatsapp-evolution/status',
+    )
+    expect(calls.every((call) => call.options.body === undefined)).toBe(true)
+  })
+
+  test('WhatsApp errors preserve backend message, status and body', async () => {
+    const responseBody = { success: false, error: 'Evolution unavailable' }
+    globalThis.fetch = async () => Response.json(responseBody, { status: 502 })
+    const { gatewayApi } = await import(
+      `./gatewayApi.js?t=wa-error-${Date.now()}`
+    )
+
+    try {
+      await gatewayApi.connectWhatsApp('biz_1')
+      throw new Error('Expected WhatsApp connection to fail')
+    } catch (error) {
+      expect(error.message).toBe('Evolution unavailable')
+      expect(error.status).toBe(502)
+      expect(error.body).toEqual(responseBody)
+    }
+  })
+
   test('listConversations hits the business conversations endpoint', async () => {
     const calls = []
     globalThis.fetch = async (url, options = {}) => {
@@ -191,8 +237,7 @@ describe('gatewayApi integration (mock fetch)', () => {
       success: false,
       message: 'The requested appointment time is not available.',
     }
-    globalThis.fetch = async () =>
-      Response.json(conflictBody, { status: 409 })
+    globalThis.fetch = async () => Response.json(conflictBody, { status: 409 })
 
     const { gatewayApi } = await import(`./gatewayApi.js?t=${Date.now() + 5}`)
     try {
@@ -237,9 +282,7 @@ describe('gatewayApi integration (mock fetch)', () => {
       notes: 'Follow up tomorrow',
       performed_by: 'agent_2',
     })
-    expect(new URL(calls[2].url).pathname).toBe(
-      '/api/leads/lead%2F1/assign',
-    )
+    expect(new URL(calls[2].url).pathname).toBe('/api/leads/lead%2F1/assign')
     expect(calls[2].options.method).toBe('POST')
     expect(JSON.parse(calls[2].options.body)).toEqual({
       business_id: 'biz_1',
@@ -309,8 +352,7 @@ describe('gatewayApi integration (mock fetch)', () => {
 
   test('chatbot config errors preserve message, status and body', async () => {
     const responseBody = { success: false, message: 'Config proxy unavailable' }
-    globalThis.fetch = async () =>
-      Response.json(responseBody, { status: 503 })
+    globalThis.fetch = async () => Response.json(responseBody, { status: 503 })
     const { gatewayApi } = await import(`./gatewayApi.js?t=${Date.now() + 9}`)
 
     try {

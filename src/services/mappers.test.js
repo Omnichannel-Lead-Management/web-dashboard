@@ -30,10 +30,67 @@ import {
   faqPayloadWithPendingKeyword,
   mapChatbotConfig,
   toChatbotConfigPatch,
+  mapWhatsAppConnection,
+  mapWhatsAppQr,
+  mapWhatsAppStatus,
 } from './mappers.js'
 import { gatewayWsUrl } from '../config.js'
 
 describe('mappers unit', () => {
+  test('maps connected and disconnected WhatsApp responses safely', () => {
+    expect(
+      mapWhatsAppStatus({
+        connected: 'true',
+        status: 'open',
+        instance_name: 'biz_1',
+      }),
+    ).toEqual({ connected: true, status: 'open', instanceName: 'biz_1' })
+    expect(mapWhatsAppStatus({ connected: false, status: 'close' })).toEqual({
+      connected: false,
+      status: 'close',
+      instanceName: '',
+    })
+    expect(mapWhatsAppStatus({ connected: '0' }).connected).toBe(false)
+    expect(mapWhatsAppStatus({ connected: 1 }).connected).toBe(true)
+  })
+
+  test('maps the verified QR field and instance without mutating source', () => {
+    const rawQr = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAAB'
+    const source = {
+      success: true,
+      ok: true,
+      instance_name: 'biz_1',
+      qrcode: rawQr,
+    }
+    const snapshot = structuredClone(source)
+    expect(mapWhatsAppConnection(source)).toEqual({
+      connected: false,
+      instanceName: 'biz_1',
+      qrImage: `data:image/png;base64,${rawQr}`,
+      expiresAt: null,
+      status: '',
+    })
+    expect(
+      mapWhatsAppQr({ data: { qrcode: `data:image/png;base64,${rawQr}` } }),
+    ).toEqual({
+      qrImage: `data:image/png;base64,${rawQr}`,
+      expiresAt: null,
+    })
+    expect(source).toEqual(snapshot)
+  })
+
+  test('rejects malformed WhatsApp QR responses', () => {
+    expect(() => mapWhatsAppQr({ qrcode: 'not a QR image' })).toThrow(
+      'invalid WhatsApp QR code',
+    )
+    expect(() => mapWhatsAppQr({ success: true })).toThrow(
+      'invalid WhatsApp QR code',
+    )
+    expect(() => mapWhatsAppQr({ qrcode: 'data:image/png;base64,broken' })).toThrow(
+      'invalid WhatsApp QR code',
+    )
+  })
+
   test('mapFaq normalizes the chatbot-builder record format', () => {
     expect(
       mapFaq({
@@ -190,7 +247,9 @@ describe('mappers unit', () => {
   })
 
   test('chatbot config supports boolean-like values and timestamp forms', () => {
-    expect(mapChatbotConfig({ chatbot_enabled: 'false', updated_at: 0 })).toEqual({
+    expect(
+      mapChatbotConfig({ chatbot_enabled: 'false', updated_at: 0 }),
+    ).toEqual({
       businessId: '',
       chatbotEnabled: false,
       welcomeMessage: '',
@@ -410,25 +469,48 @@ describe('mapLead unit', () => {
 
   test('live leads remain protected by combined status and search filtering', () => {
     const leads = [
-      { id: 'new-match', name: 'Maya', interest: 'Wedding', status: 'new', channel: 'Telegram' },
-      { id: 'qualified-stream', name: 'Maya', interest: 'Wedding', status: 'qualified', channel: 'Telegram' },
-      { id: 'new-search-miss', name: 'Ravi', interest: 'Portrait', status: 'new', channel: 'Telegram' },
+      {
+        id: 'new-match',
+        name: 'Maya',
+        interest: 'Wedding',
+        status: 'new',
+        channel: 'Telegram',
+      },
+      {
+        id: 'qualified-stream',
+        name: 'Maya',
+        interest: 'Wedding',
+        status: 'qualified',
+        channel: 'Telegram',
+      },
+      {
+        id: 'new-search-miss',
+        name: 'Ravi',
+        interest: 'Portrait',
+        status: 'new',
+        channel: 'Telegram',
+      },
     ]
 
-    expect(filterVisibleLeads(leads, { status: 'new' }).map((lead) => lead.id)).toEqual([
-      'new-match',
-      'new-search-miss',
-    ])
+    expect(
+      filterVisibleLeads(leads, { status: 'new' }).map((lead) => lead.id),
+    ).toEqual(['new-match', 'new-search-miss'])
     leads[0] = { ...leads[0], status: 'contacted' }
-    expect(filterVisibleLeads(leads, { status: 'new' }).map((lead) => lead.id)).toEqual([
-      'new-search-miss',
-    ])
+    expect(
+      filterVisibleLeads(leads, { status: 'new' }).map((lead) => lead.id),
+    ).toEqual(['new-search-miss'])
     expect(filterVisibleLeads(leads, { status: '' })).toHaveLength(3)
-    const visible = filterVisibleLeads(leads, { status: 'new', search: 'portrait' })
+    const visible = filterVisibleLeads(leads, {
+      status: 'new',
+      search: 'portrait',
+    })
     expect(visible.map((lead) => lead.id)).toEqual(['new-search-miss'])
-    expect(retainVisibleLeadSelection(['new-match', 'new-search-miss'], visible.map((lead) => lead.id))).toEqual([
-      'new-search-miss',
-    ])
+    expect(
+      retainVisibleLeadSelection(
+        ['new-match', 'new-search-miss'],
+        visible.map((lead) => lead.id),
+      ),
+    ).toEqual(['new-search-miss'])
   })
 
   test('converted lead value changes use numeric comparison and minimal patches', () => {
@@ -496,7 +578,9 @@ describe('mapLead unit', () => {
       conversionValue: '25000',
     })
     expect(lead).toEqual({ status: 'converted', conversionValue: 25000 })
-    expect(leadStatusDrafts({ status: 'converted', conversionValue: null })).toEqual({
+    expect(
+      leadStatusDrafts({ status: 'converted', conversionValue: null }),
+    ).toEqual({
       status: 'converted',
       conversionValue: '',
     })

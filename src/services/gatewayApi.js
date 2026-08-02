@@ -56,6 +56,25 @@ export const gatewayApi = {
     )
   },
 
+  connectWhatsApp(businessId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/channels/whatsapp-evolution`,
+      { method: 'POST' },
+    )
+  },
+
+  getWhatsAppQr(businessId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/channels/whatsapp-evolution/qrcode`,
+    )
+  },
+
+  getWhatsAppStatus(businessId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/channels/whatsapp-evolution/status`,
+    )
+  },
+
   // ── FAQs (business-scoped; see BACKEND_REQUIREMENTS.md for the contract) ──
   listFaqs(businessId) {
     return request(`/api/businesses/${encodeURIComponent(businessId)}/faqs`)
@@ -89,19 +108,14 @@ export const gatewayApi = {
   },
 
   getChatbotConfig(businessId) {
-    return request(
-      `/api/businesses/${encodeURIComponent(businessId)}/config`,
-    )
+    return request(`/api/businesses/${encodeURIComponent(businessId)}/config`)
   },
 
   updateChatbotConfig(businessId, patch) {
-    return request(
-      `/api/businesses/${encodeURIComponent(businessId)}/config`,
-      {
-        method: 'PATCH',
-        body: JSON.stringify(patch),
-      },
-    )
+    return request(`/api/businesses/${encodeURIComponent(businessId)}/config`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    })
   },
 
   getMessagingHistory({ messenger_id, platform, limit = 50 }) {

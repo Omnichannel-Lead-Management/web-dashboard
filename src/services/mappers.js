@@ -115,6 +115,79 @@ function configBoolean(value, fallback = true) {
   return fallback
 }
 
+function whatsappBoolean(value, fallback = false) {
+  if (value === true || value === 1 || value === '1') return true
+  if (value === false || value === 0 || value === '0') return false
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  return fallback
+}
+
+function whatsappSource(response) {
+  return response?.data ?? response?.result ?? response
+}
+
+function qrImageSource(value) {
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  const dataUri = trimmed.match(
+    /^data:image\/(?:png|jpeg|jpg|webp);base64,([a-z0-9+/=\s]+)$/i,
+  )
+  if (dataUri) {
+    const compactPayload = dataUri[1].replace(/\s/g, '')
+    if (
+      compactPayload.length >= 16 &&
+      compactPayload.length % 4 === 0 &&
+      /^[a-z0-9+/]+={0,2}$/i.test(compactPayload)
+    ) {
+      return `${trimmed.slice(0, trimmed.indexOf(',') + 1)}${compactPayload}`
+    }
+    return ''
+  }
+  const compact = trimmed.replace(/\s/g, '')
+  if (
+    compact.length >= 16 &&
+    compact.length % 4 === 0 &&
+    /^[a-z0-9+/]+={0,2}$/i.test(compact)
+  ) {
+    return `data:image/png;base64,${compact}`
+  }
+  return ''
+}
+
+/** Gateway Evolution instance creation response -> stable connection state. */
+export function mapWhatsAppConnection(response = {}) {
+  const source = whatsappSource(response) || {}
+  return {
+    connected: whatsappBoolean(source.connected, false),
+    instanceName: String(source.instance_name ?? source.instanceName ?? ''),
+    qrImage: qrImageSource(source.qrcode ?? source.qrImage),
+    expiresAt: null,
+    status: String(source.status ?? ''),
+  }
+}
+
+/** Gateway Evolution QR response. Throws instead of exposing a broken image. */
+export function mapWhatsAppQr(response = {}) {
+  const source = whatsappSource(response) || {}
+  const qrImage = qrImageSource(source.qrcode ?? source.qrImage)
+  if (!qrImage) throw new Error('Gateway returned an invalid WhatsApp QR code')
+  return { qrImage, expiresAt: null }
+}
+
+/** Gateway Evolution connection-state response -> stable status state. */
+export function mapWhatsAppStatus(response = {}) {
+  const source = whatsappSource(response) || {}
+  return {
+    connected: whatsappBoolean(source.connected, false),
+    instanceName: String(source.instance_name ?? source.instanceName ?? ''),
+    status: String(source.status ?? ''),
+  }
+}
+
 /** chatbot-builder business config -> stable settings state. */
 export function mapChatbotConfig(response = {}) {
   const source = response?.config ?? response
@@ -203,10 +276,7 @@ function relativeAge(timestamp) {
       ? Number(timestamp)
       : new Date(timestamp).getTime()
   if (Number.isNaN(parsed)) return ''
-  const seconds = Math.max(
-    0,
-    Math.floor((Date.now() - parsed) / 1000),
-  )
+  const seconds = Math.max(0, Math.floor((Date.now() - parsed) / 1000))
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
@@ -300,7 +370,8 @@ export function filterVisibleLeads(
 ) {
   const normalizedSearch = search.trim().toLowerCase()
   return leads.filter((lead) => {
-    const searchableText = `${lead.name ?? ''} ${lead.id ?? ''} ${lead.interest ?? ''}`.toLowerCase()
+    const searchableText =
+      `${lead.name ?? ''} ${lead.id ?? ''} ${lead.interest ?? ''}`.toLowerCase()
     const matchesSearch =
       !normalizedSearch || searchableText.includes(normalizedSearch)
     const matchesStatus = !status || lead.status === status
@@ -461,8 +532,7 @@ export function mapAvailability(response) {
     : []
 
   return {
-    businessId:
-      typeof data.businessId === 'string' ? data.businessId : '',
+    businessId: typeof data.businessId === 'string' ? data.businessId : '',
     date: typeof data.date === 'string' ? data.date : '',
     slots,
   }
@@ -495,12 +565,12 @@ export function isAppointmentSubmissionReady(
 ) {
   return Boolean(
     form.customer?.trim() &&
-      form.service &&
-      form.date &&
-      form.startTime &&
-      form.endTime &&
-      !availabilityLoading &&
-      !submitting,
+    form.service &&
+    form.date &&
+    form.startTime &&
+    form.endTime &&
+    !availabilityLoading &&
+    !submitting,
   )
 }
 

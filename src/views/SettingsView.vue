@@ -13,9 +13,9 @@ import AppShell from '../components/layout/AppShell.vue'
 import SettingsNavigation from '../components/settings/SettingsNavigation.vue'
 import FaqManager from '../components/settings/FaqManager.vue'
 import ChatbotSettings from '../components/settings/ChatbotSettings.vue'
+import WhatsAppConnect from '../components/settings/WhatsAppConnect.vue'
 import AppButton from '../components/common/AppButton.vue'
 import AppBadge from '../components/common/AppBadge.vue'
-import { gatewayApi } from '../services/gatewayApi'
 import { useAppStore } from '../stores/app'
 
 const store = useAppStore()
@@ -38,18 +38,26 @@ const businessProfile = reactive({
 async function loadBusiness() {
   if (!store.businessId) return
   try {
-    const result = await gatewayApi.getBusiness(store.businessId)
-    business.value = result.business
-    businessProfile.name = result.business.name || businessProfile.name
-    businessProfile.id = result.business.id
-    businessProfile.sector = result.business.sector || ''
-    businessProfile.email = result.business.owner_email || ''
+    const result = await store.refreshBusiness()
+    if (!result) return
+    business.value = result
+    businessProfile.name = result.name || businessProfile.name
+    businessProfile.id = result.id
+    businessProfile.sector = result.sector || ''
+    businessProfile.email = result.owner_email || ''
   } catch (error) {
     store.notify(error.message || 'Failed to load business', 'error')
   }
 }
 
 onMounted(loadBusiness)
+
+watch(
+  () => store.business,
+  (value) => {
+    business.value = value
+  },
+)
 
 const channels = computed(() => [
   {
@@ -201,28 +209,7 @@ async function connectTelegramBot() {
             </AppButton>
           </template>
           <template v-else-if="activeSection === 'whatsapp'">
-            <h2>Connect WhatsApp</h2>
-            <p class="intro">
-              Scan the QR code with WhatsApp on your business phone.
-            </p>
-            <div class="qr">
-              <div>
-                LOOP
-                <br />
-                QR
-              </div>
-              <ol>
-                <li>Open WhatsApp → Settings → Linked devices</li>
-                <li>Tap “Link a device”</li>
-                <li>Point your phone at this screen</li>
-              </ol>
-            </div>
-            <AppButton
-              disabled
-              title="WhatsApp QR refresh is not available yet"
-            >
-              Refresh QR code
-            </AppButton>
+            <WhatsAppConnect />
           </template>
           <template v-else-if="activeSection === 'chatbot'">
             <ChatbotSettings :business-name="store.businessName" />
@@ -390,27 +377,6 @@ async function connectTelegramBot() {
   font-size: 10.5px;
   margin: -8px 0 17px;
 }
-.qr {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  margin: 20px 0;
-}
-.qr > div {
-  width: 160px;
-  height: 160px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  font: 800 20px 'JetBrains Mono';
-  background: repeating-linear-gradient(45deg, #1c2033 0 5px, #fff 5px 10px);
-  color: var(--primary);
-  border: 12px solid #fff;
-  outline: 1px solid var(--border);
-}
-.qr ol {
-  flex: 1;
-}
 .toggle-row {
   display: flex;
   justify-content: space-between;
@@ -482,10 +448,6 @@ async function connectTelegramBot() {
   }
   .wide {
     grid-column: auto;
-  }
-  .qr {
-    align-items: flex-start;
-    flex-direction: column;
   }
 }
 </style>
