@@ -6,6 +6,9 @@ import {
   mapLead,
   mapLeadActivity,
   mapAppointment,
+  appointmentStatusActions,
+  filterAppointmentsByStatus,
+  splitAppointmentsByTime,
   toAppointmentPayload,
   parseConversationId,
   mapFaq,
@@ -222,6 +225,8 @@ describe('mapAppointment unit', () => {
     expect(mapped.service).toBe('haircut')
     expect(mapped.duration).toBe('30 min')
     expect(mapped.day).not.toBe('Unscheduled')
+    expect(mapped.startTime).toBe('2026-07-31T09:30:00.000Z')
+    expect(mapped.endTime).toBe('2026-07-31T10:00:00.000Z')
   })
 
   test('splits an ISO slot into day, 12-hour time and duration', () => {
@@ -247,6 +252,58 @@ describe('mapAppointment unit', () => {
     })
     expect(mapped.day).toBe('Unscheduled')
     expect(mapped.duration).toBe('—')
+  })
+})
+
+describe('appointment presentation helpers', () => {
+  test('returns only valid actions for each appointment status', () => {
+    expect(appointmentStatusActions('pending')).toEqual([
+      'confirmed',
+      'cancelled',
+    ])
+    expect(appointmentStatusActions('confirmed')).toEqual([
+      'completed',
+      'cancelled',
+    ])
+    expect(appointmentStatusActions('completed')).toEqual([])
+    expect(appointmentStatusActions('cancelled')).toEqual([])
+  })
+
+  test('filters without mutating the source appointments', () => {
+    const appointments = [
+      { id: 'a', status: 'pending' },
+      { id: 'b', status: 'confirmed' },
+    ]
+    expect(filterAppointmentsByStatus(appointments, 'pending')).toEqual([
+      appointments[0],
+    ])
+    expect(filterAppointmentsByStatus(appointments, 'all')).not.toBe(
+      appointments,
+    )
+    expect(appointments).toHaveLength(2)
+  })
+
+  test('splits by end time and sorts upcoming earliest and past newest', () => {
+    const now = new Date('2026-08-02T12:00:00.000Z').getTime()
+    const appointments = [
+      { id: 'future-later', endTime: '2026-08-04T12:00:00.000Z' },
+      { id: 'past-older', endTime: '2026-07-30T12:00:00.000Z' },
+      { id: 'future-sooner', endTime: '2026-08-03T12:00:00.000Z' },
+      { id: 'past-newer', endTime: '2026-08-01T12:00:00.000Z' },
+      { id: 'invalid', endTime: 'not-a-date' },
+    ]
+
+    const result = splitAppointmentsByTime(appointments, now)
+    expect(result.upcoming.map((item) => item.id)).toEqual([
+      'future-sooner',
+      'future-later',
+      'invalid',
+    ])
+    expect(result.past.map((item) => item.id)).toEqual([
+      'past-newer',
+      'past-older',
+    ])
+    expect(appointments[0].id).toBe('future-later')
   })
 })
 

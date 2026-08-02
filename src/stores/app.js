@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { gatewayApi } from '../services/gatewayApi'
+import { appointmentService } from '../services/appointmentService'
 import { createAgentSocket } from '../services/agentSocket'
 import {
   mapConversation,
@@ -629,6 +630,38 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function updateAppointmentStatus(id, status) {
+    const appointment = appointments.value.find((item) => item.id === id)
+    if (!appointment) {
+      notify('Appointment not found', 'error')
+      return null
+    }
+
+    const originalStatus = appointment.status
+    appointment.status = status
+
+    try {
+      const confirmed = await appointmentService.updateStatus(
+        id,
+        businessId.value,
+        status,
+      )
+      if (confirmed) Object.assign(appointment, confirmed)
+
+      const successMessages = {
+        confirmed: 'Appointment confirmed',
+        completed: 'Appointment completed',
+        cancelled: 'Appointment cancelled',
+      }
+      notify(successMessages[status] || 'Appointment updated')
+      return appointment
+    } catch (error) {
+      appointment.status = originalStatus
+      notify(error.message || 'Failed to update appointment', 'error')
+      throw error
+    }
+  }
+
   async function connectTelegram(botToken) {
     if (!businessId.value) throw new Error('No business selected')
     const result = await gatewayApi.connectTelegram(businessId.value, botToken)
@@ -724,6 +757,7 @@ export const useAppStore = defineStore('app', () => {
     loadLead,
     refreshAppointments,
     addAppointment,
+    updateAppointmentStatus,
     refreshConversations,
     loadHistory,
     connectTelegram,

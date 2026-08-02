@@ -49,6 +49,14 @@ defineProps({
   color: #b25a12;
   background: #fdecd3;
 }
+.badge--pending {
+  color: #b25a12;
+  background: #fdecd3;
+}
+.badge--cancelled {
+  color: var(--danger);
+  background: var(--danger-bg);
+}
 .badge--telegram {
   color: #1a6a94;
   background: #e3f2fb;

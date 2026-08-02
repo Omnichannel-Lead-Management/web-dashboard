@@ -229,6 +229,8 @@ export function mapAppointment(appointment) {
 
   return {
     id: appointment.id,
+    startTime: startTime || null,
+    endTime: endTime || null,
     date: valid ? start.toISOString().slice(0, 10) : '',
     day: isToday ? `Today · ${dayLabel}` : dayLabel,
     time: `${hour12}:${minutes}`,
@@ -241,6 +243,48 @@ export function mapAppointment(appointment) {
     staff: appointment.staff || '—',
     notes: appointment.notes || '',
   }
+}
+
+export function appointmentStatusActions(status) {
+  if (status === 'pending') return ['confirmed', 'cancelled']
+  if (status === 'confirmed') return ['completed', 'cancelled']
+  return []
+}
+
+export function filterAppointmentsByStatus(appointments, status) {
+  if (!status || status === 'all') return [...appointments]
+  return appointments.filter((appointment) => appointment.status === status)
+}
+
+function appointmentTimestamp(appointment) {
+  const value = appointment.endTime || appointment.startTime
+  if (!value) return null
+  const timestamp = new Date(value).getTime()
+  return Number.isNaN(timestamp) ? null : timestamp
+}
+
+export function splitAppointmentsByTime(appointments, now = Date.now()) {
+  const upcoming = []
+  const past = []
+
+  for (const appointment of appointments) {
+    const timestamp = appointmentTimestamp(appointment)
+    if (timestamp !== null && timestamp < now) past.push(appointment)
+    else upcoming.push(appointment)
+  }
+
+  upcoming.sort(
+    (left, right) =>
+      (appointmentTimestamp(left) ?? Number.POSITIVE_INFINITY) -
+      (appointmentTimestamp(right) ?? Number.POSITIVE_INFINITY),
+  )
+  past.sort(
+    (left, right) =>
+      (appointmentTimestamp(right) ?? Number.NEGATIVE_INFINITY) -
+      (appointmentTimestamp(left) ?? Number.NEGATIVE_INFINITY),
+  )
+
+  return { upcoming, past }
 }
 
 /**
