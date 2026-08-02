@@ -31,7 +31,10 @@ const businessProfile = reactive({
   email: '',
   city: '',
   phone: '',
+  description: '',
 })
+const welcomeMessage = ref('')
+const escalationMessage = ref('')
 
 async function loadBusiness() {
   if (!store.businessId) return
@@ -85,10 +88,6 @@ watch(
 function selectSection(sectionId) {
   activeSection.value = sectionId
   router.replace({ query: { section: sectionId } })
-}
-
-function showSavedMessage(message = 'Settings saved') {
-  store.notify(message)
 }
 
 async function connectTelegramBot() {
@@ -219,7 +218,10 @@ async function connectTelegramBot() {
                 <li>Point your phone at this screen</li>
               </ol>
             </div>
-            <AppButton @click="showSavedMessage('QR code refreshed')">
+            <AppButton
+              disabled
+              title="WhatsApp QR refresh is not available yet"
+            >
               Refresh QR code
             </AppButton>
           </template>
@@ -245,15 +247,25 @@ async function connectTelegramBot() {
             </div>
             <label class="field">
               Welcome message
-              <textarea rows="3">
-Hi! Welcome to Elegant Salon. How can we help today?</textarea>
+              <textarea
+                v-model="welcomeMessage"
+                rows="3"
+                placeholder="Enter the greeting customers should receive"
+              />
             </label>
             <label class="field">
               Escalation message
-              <textarea rows="3">
-I’ll connect you with a member of our team who can help.</textarea>
+              <textarea
+                v-model="escalationMessage"
+                rows="3"
+                placeholder="Enter the message shown before a human handoff"
+              />
             </label>
-            <AppButton @click="showSavedMessage('Chatbot messages saved')">
+            <!-- Persistence will be enabled when the gateway config API is available. -->
+            <AppButton
+              disabled
+              title="Chatbot message persistence is not available yet"
+            >
               Save changes
             </AppButton>
           </template>
@@ -265,7 +277,7 @@ I’ll connect you with a member of our team who can help.</textarea>
             <p class="intro">
               These details help the chatbot give accurate answers.
             </p>
-            <form @submit.prevent="showSavedMessage('Business profile saved')">
+            <form @submit.prevent>
               <label class="field">
                 Business name
                 <input v-model="businessProfile.name" required />
@@ -295,10 +307,19 @@ I’ll connect you with a member of our team who can help.</textarea>
               </label>
               <label class="field wide">
                 Business description
-                <textarea rows="4">
-Premium salon services in the heart of Colombo, open Monday to Saturday.</textarea>
+                <textarea
+                  v-model="businessProfile.description"
+                  rows="4"
+                  placeholder="Describe your business"
+                />
               </label>
-              <AppButton class="wide">Save profile</AppButton>
+              <AppButton
+                class="wide"
+                disabled
+                title="Business profile updates are not available yet"
+              >
+                Save profile
+              </AppButton>
             </form>
           </template>
         </section>

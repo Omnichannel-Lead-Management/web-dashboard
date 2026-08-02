@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick, provide } from 'vue'
+import { ref, computed, nextTick, provide, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppShell from '../components/layout/AppShell.vue'
 import ConversationList from '../components/inbox/ConversationList.vue'
@@ -7,13 +7,6 @@ import ChatHeader from '../components/inbox/ChatHeader.vue'
 import ChatMessage from '../components/inbox/ChatMessage.vue'
 import ChatComposer from '../components/inbox/ChatComposer.vue'
 import { useAppStore } from '../stores/app'
-import {
-  inboxPreviewAgent,
-  inboxPreviewBusiness,
-  inboxPreviewConversations,
-  inboxPreviewMessages,
-  inboxPreviewSelectedConversationId,
-} from '../data/inboxPreviewData'
 
 const store = useAppStore()
 const route = useRoute()
@@ -23,21 +16,42 @@ const isInboxPreview = computed(
 const conversationSearch = ref('')
 const conversationFilter = ref('All')
 const activeMobilePanel = ref('list')
-const previewConversations = ref(structuredClone(inboxPreviewConversations))
-const previewMessages = ref(structuredClone(inboxPreviewMessages))
-const previewSelectedConversationId = ref(inboxPreviewSelectedConversationId)
+const previewConversations = ref([])
+const previewMessages = ref({})
+const previewSelectedConversationId = ref('')
+const previewIdentity = ref(null)
+
+if (import.meta.env.DEV) {
+  watch(
+    isInboxPreview,
+    async (enabled) => {
+      if (!enabled) return
+
+      try {
+        const preview = await import('../data/inboxPreviewData.js')
+        if (!isInboxPreview.value) return
+        previewConversations.value = structuredClone(
+          preview.inboxPreviewConversations,
+        )
+        previewMessages.value = structuredClone(preview.inboxPreviewMessages)
+        previewSelectedConversationId.value =
+          preview.inboxPreviewSelectedConversationId
+        previewIdentity.value = {
+          business: preview.inboxPreviewBusiness,
+          agent: preview.inboxPreviewAgent,
+          connectionStatus: 'online',
+        }
+      } catch (error) {
+        console.error('Failed to load inbox preview data:', error)
+      }
+    },
+    { immediate: true },
+  )
+}
 
 provide(
   'inboxPreviewIdentity',
-  computed(() =>
-    isInboxPreview.value
-      ? {
-          business: inboxPreviewBusiness,
-          agent: inboxPreviewAgent,
-          connectionStatus: 'online',
-        }
-      : null,
-  ),
+  computed(() => (isInboxPreview.value ? previewIdentity.value : null)),
 )
 
 const emptyConversation = {

@@ -8,13 +8,13 @@ const router = useRouter()
 const store = useAppStore()
 const validationError = ref('')
 const registrationForm = reactive({
-  business: 'Elegant Salon',
-  sector: 'Salon',
-  owner: 'Nimali Fernando',
-  email: 'owner@elegantsalon.lk',
-  city: 'Colombo',
-  password: 'password',
-  confirm: 'password',
+  business: '',
+  sector: '',
+  owner: '',
+  email: '',
+  city: '',
+  password: '',
+  confirm: '',
 })
 
 async function submitRegistration() {
@@ -62,7 +62,8 @@ async function submitRegistration() {
         </label>
         <label class="field">
           Sector *
-          <select v-model="registrationForm.sector">
+          <select v-model="registrationForm.sector" required>
+            <option disabled value="">Select a sector</option>
             <option>Salon</option>
             <option>Tutor</option>
             <option>Photography</option>
