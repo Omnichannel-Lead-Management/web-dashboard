@@ -143,6 +143,147 @@ export function mapTelegramConnection(response = {}) {
   }
 }
 
+function flowBoolean(value, fallback = true) {
+  if (value === true || value === 1 || value === '1') return true
+  if (value === false || value === 0 || value === '0') return false
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  return fallback
+}
+
+function flowTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null
+  const numeric = Number(value)
+  if (Number.isFinite(numeric)) {
+    return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
+  }
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+function parsedFlowJson(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value
+  if (typeof value !== 'string') return null
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed
+      : null
+  } catch {
+    return null
+  }
+}
+
+export function mapConversationTemplate(template = {}, stored = null) {
+  return {
+    id: String(template.id ?? ''),
+    name: String(template.name ?? '').trim(),
+    sector: String(template.sector ?? '').trim(),
+    triggerIntents: Array.isArray(template.trigger_intents)
+      ? [...template.trigger_intents].map(String)
+      : [],
+    flowJson: parsedFlowJson(stored?.flow ?? stored?.flow_json),
+  }
+}
+
+export function mapConversationFlow(source = {}) {
+  const rawFlow = source.flow ?? source.flow_json
+  const flowJson = parsedFlowJson(rawFlow)
+  return {
+    id: String(source.id ?? ''),
+    businessId: String(source.business_id ?? source.businessId ?? ''),
+    name: String(source.name ?? '').trim(),
+    sector: String(source.sector ?? '').trim(),
+    isActive: flowBoolean(source.is_active ?? source.isActive, true),
+    isTemplate: flowBoolean(source.is_template ?? source.isTemplate, false),
+    flowJson,
+    flowError:
+      rawFlow !== undefined && !flowJson ? 'This flow has malformed step data.' : '',
+    triggerIntents: Array.isArray(source.trigger_intents)
+      ? [...source.trigger_intents].map(String)
+      : [],
+    createdBy: String(source.created_by ?? source.createdBy ?? ''),
+    createdAt: flowTimestamp(source.created_at ?? source.createdAt),
+    updatedAt: flowTimestamp(source.updated_at ?? source.updatedAt),
+  }
+}
+
+function nodeText(node) {
+  return String(node.content ?? node.message ?? '').trim()
+}
+
+/** Deterministic, bounded graph traversal for the read-only owner view. */
+export function mapFlowSteps(flowJson, maxSteps = 100) {
+  if (!flowJson || typeof flowJson !== 'object' || !Array.isArray(flowJson.nodes)) {
+    throw new Error('This flow has malformed step data.')
+  }
+  const nodes = new Map(
+    flowJson.nodes
+      .filter((node) => node && typeof node.id === 'string')
+      .map((node) => [node.id, node]),
+  )
+  const start = typeof flowJson.start === 'string' ? flowJson.start : flowJson.nodes[0]?.id
+  if (!start) return []
+  const visited = new Set()
+  const steps = []
+
+  function walk(id, branchLabel = '') {
+    if (!id || visited.has(id) || steps.length >= maxSteps) return
+    const node = nodes.get(id)
+    if (!node) {
+      steps.push({
+        id,
+        order: steps.length + 1,
+        type: 'missing',
+        title: 'Missing referenced step',
+        text: `The flow references “${id}”, but that step is unavailable.`,
+        branchLabel,
+      })
+      return
+    }
+    visited.add(id)
+    const labels = {
+      message: 'Bot message',
+      question: 'Customer question',
+      branch: 'Conditional branch',
+      action: 'Automation action',
+      escalate: 'Human handoff',
+      trigger_service: 'Service handoff',
+    }
+    const text = nodeText(node)
+    steps.push({
+      id: node.id,
+      order: steps.length + 1,
+      type: String(node.type || 'step'),
+      title: labels[node.type] || 'Conversation step',
+      text:
+        text ||
+        (node.type === 'action'
+          ? String(node.action || 'Run automation')
+          : node.type === 'branch'
+            ? 'Choose a path based on the customer response.'
+            : 'Continue the conversation.'),
+      branchLabel,
+    })
+    if (node.type === 'branch' && Array.isArray(node.conditions)) {
+      node.conditions.forEach((condition) => {
+        const label = condition.default === true
+          ? 'Otherwise'
+          : `When response includes “${String(condition.keyword ?? '')}”`
+        walk(condition.next, label)
+      })
+    } else {
+      walk(node.next)
+    }
+  }
+
+  walk(start)
+  return steps
+}
+
 function whatsappSource(response) {
   return response?.data ?? response?.result ?? response
 }

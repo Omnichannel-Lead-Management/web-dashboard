@@ -12,6 +12,8 @@ import {
   mapFaq,
   toFaqPayload,
   mapChatbotConfig,
+  mapConversationTemplate,
+  mapConversationFlow,
   toChatbotConfigPatch,
   toAppointmentPayload,
   conversationId,
@@ -69,6 +71,12 @@ export const useAppStore = defineStore('app', () => {
   const leadActivities = ref([])
   const appointments = ref([])
   const faqs = ref([])
+  const conversationTemplates = ref([])
+  const businessFlows = ref([])
+  const loadingTemplates = ref(false)
+  const loadingFlows = ref(false)
+  const templateError = ref('')
+  const flowError = ref('')
   const loadingFaqs = ref(false)
   const faqError = ref('')
   const loadingLeads = ref(false)
@@ -85,6 +93,10 @@ export const useAppStore = defineStore('app', () => {
   let faqSessionVersion = 0
   let faqListRequestId = 0
   const activeFaqMutations = new Set()
+  let flowSessionVersion = 0
+  let templateRequestId = 0
+  let flowListRequestId = 0
+  const activeFlowMutations = new Set()
   let chatbotConfigSessionVersion = 0
   let businessSessionVersion = 0
   let chatbotConfigRequestId = 0
@@ -483,6 +495,19 @@ export const useAppStore = defineStore('app', () => {
     return created.business
   }
 
+  function resetFlowTemplateState() {
+    flowSessionVersion += 1
+    templateRequestId += 1
+    flowListRequestId += 1
+    activeFlowMutations.clear()
+    conversationTemplates.value = []
+    businessFlows.value = []
+    templateError.value = ''
+    flowError.value = ''
+    loadingTemplates.value = false
+    loadingFlows.value = false
+  }
+
   function logout() {
     authenticated.value = false
     localStorage.setItem(STORAGE.auth, 'false')
@@ -496,6 +521,7 @@ export const useAppStore = defineStore('app', () => {
     faqSessionVersion += 1
     faqListRequestId += 1
     activeFaqMutations.clear()
+    resetFlowTemplateState()
     chatbotConfigSessionVersion += 1
     businessSessionVersion += 1
     chatbotConfigRequestId += 1
@@ -1125,6 +1151,195 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  async function refreshConversationTemplates() {
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
+    }
+    const sessionVersion = flowSessionVersion
+    const requestBusinessId = businessId.value
+    const requestId = ++templateRequestId
+    loadingTemplates.value = true
+    templateError.value = ''
+    try {
+      const result = await gatewayApi.listTemplates()
+      if (
+        requestId !== templateRequestId ||
+        sessionVersion !== flowSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return null
+      if (!Array.isArray(result?.templates) || !Array.isArray(result?.stored)) {
+        throw new Error('Gateway returned an invalid template list response')
+      }
+      conversationTemplates.value = result.templates.map((template) => {
+        const stored = result.stored.find(
+          (item) => item.id === template.id || item.sector === template.sector,
+        )
+        return mapConversationTemplate(template, stored)
+      })
+      return conversationTemplates.value
+    } catch (error) {
+      if (
+        requestId !== templateRequestId ||
+        sessionVersion !== flowSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return null
+      templateError.value = error.message || 'Failed to load templates'
+      throw error
+    } finally {
+      if (
+        requestId === templateRequestId &&
+        sessionVersion === flowSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) loadingTemplates.value = false
+    }
+  }
+
+  async function refreshBusinessFlows() {
+    if (!authenticated.value || !businessId.value) {
+      throw new Error('No active business session')
+    }
+    const sessionVersion = flowSessionVersion
+    const requestBusinessId = businessId.value
+    const requestId = ++flowListRequestId
+    loadingFlows.value = true
+    flowError.value = ''
+    try {
+      const result = await gatewayApi.listFlows(requestBusinessId)
+      if (
+        requestId !== flowListRequestId ||
+        sessionVersion !== flowSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return null
+      if (!Array.isArray(result?.flows)) {
+        throw new Error('Gateway returned an invalid flow list response')
+      }
+      if (result.flows.some((flow) => !flow?.id || !flow?.business_id)) {
+        throw new Error('Gateway returned an invalid flow list response')
+      }
+      businessFlows.value = result.flows.map(mapConversationFlow)
+      return businessFlows.value
+    } catch (error) {
+      if (
+        requestId !== flowListRequestId ||
+        sessionVersion !== flowSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return null
+      flowError.value = error.message || 'Failed to load attached flows'
+      throw error
+    } finally {
+      if (
+        requestId === flowListRequestId &&
+        sessionVersion === flowSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) loadingFlows.value = false
+    }
+  }
+
+  async function attachConversationTemplate(template) {
+    if (!authenticated.value || !businessId.value) throw new Error('No active business session')
+    const sessionVersion = flowSessionVersion
+    const requestBusinessId = businessId.value
+    const sector = String(template?.sector || '')
+    const mutationKey = `${sessionVersion}:attach:${sector}`
+    if (activeFlowMutations.has(mutationKey)) throw new Error('This template is already being attached')
+    if (businessFlows.value.some((flow) => flow.sector.toLowerCase() === sector.toLowerCase())) {
+      throw new Error('This template is already attached')
+    }
+    activeFlowMutations.add(mutationKey)
+    flowError.value = ''
+    try {
+      const payload = { sector }
+      if (agentId.value) payload.created_by = agentId.value
+      const result = await gatewayApi.attachTemplate(requestBusinessId, payload)
+      if (!result?.flow?.id) throw new Error('Gateway returned an invalid attached flow response')
+      const created = mapConversationFlow(result.flow)
+      if (
+        sessionVersion !== flowSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      ) return created
+      flowListRequestId += 1
+      loadingFlows.value = false
+      businessFlows.value.push(created)
+      notify(`${created.name || 'Conversation template'} attached`)
+      return created
+    } catch (error) {
+      if (sessionVersion === flowSessionVersion && businessId.value === requestBusinessId && authenticated.value) {
+        flowError.value = error.message || 'Template could not be attached'
+      }
+      throw error
+    } finally {
+      activeFlowMutations.delete(mutationKey)
+    }
+  }
+
+  async function updateBusinessFlow(flowId, changes) {
+    if (!authenticated.value || !businessId.value) throw new Error('No active business session')
+    const sessionVersion = flowSessionVersion
+    const requestBusinessId = businessId.value
+    const mutationKey = `${sessionVersion}:update:${flowId}`
+    if (activeFlowMutations.has(mutationKey)) throw new Error('This flow is already being updated')
+    const index = businessFlows.value.findIndex((flow) => flow.id === flowId)
+    if (index < 0) throw new Error('Flow not found')
+    activeFlowMutations.add(mutationKey)
+    const previous = { ...businessFlows.value[index] }
+    businessFlows.value[index] = { ...previous, isActive: Boolean(changes.isActive) }
+    flowError.value = ''
+    try {
+      const result = await gatewayApi.updateFlow(flowId, { is_active: Boolean(changes.isActive) })
+      if (!result?.flow?.id) throw new Error('Gateway returned an invalid flow response')
+      const updated = mapConversationFlow(result.flow)
+      if (sessionVersion !== flowSessionVersion || businessId.value !== requestBusinessId || !authenticated.value) return updated
+      flowListRequestId += 1
+      loadingFlows.value = false
+      const currentIndex = businessFlows.value.findIndex((flow) => flow.id === flowId)
+      if (currentIndex >= 0) businessFlows.value[currentIndex] = updated
+      notify(`Flow ${updated.isActive ? 'enabled' : 'disabled'}`)
+      return updated
+    } catch (error) {
+      if (sessionVersion === flowSessionVersion && businessId.value === requestBusinessId && authenticated.value) {
+        const currentIndex = businessFlows.value.findIndex((flow) => flow.id === flowId)
+        if (currentIndex >= 0) businessFlows.value[currentIndex] = previous
+        flowError.value = error.message || 'Flow could not be updated'
+      }
+      throw error
+    } finally {
+      activeFlowMutations.delete(mutationKey)
+    }
+  }
+
+  async function deleteBusinessFlow(flowId) {
+    if (!authenticated.value || !businessId.value) throw new Error('No active business session')
+    const sessionVersion = flowSessionVersion
+    const requestBusinessId = businessId.value
+    const mutationKey = `${sessionVersion}:delete:${flowId}`
+    if (activeFlowMutations.has(mutationKey)) throw new Error('This flow is already being deleted')
+    activeFlowMutations.add(mutationKey)
+    flowError.value = ''
+    try {
+      const result = await gatewayApi.deleteFlow(flowId)
+      if (result?.success !== true) throw new Error('Gateway returned an invalid delete response')
+      if (sessionVersion !== flowSessionVersion || businessId.value !== requestBusinessId || !authenticated.value) return
+      flowListRequestId += 1
+      loadingFlows.value = false
+      businessFlows.value = businessFlows.value.filter((flow) => flow.id !== flowId)
+      notify('Conversation flow deleted')
+    } catch (error) {
+      if (sessionVersion === flowSessionVersion && businessId.value === requestBusinessId && authenticated.value) {
+        flowError.value = error.message || 'Flow could not be deleted'
+      }
+      throw error
+    } finally {
+      activeFlowMutations.delete(mutationKey)
+    }
+  }
+
   function invalidateFaqListRequests() {
     faqListRequestId += 1
     loadingFaqs.value = false
@@ -1288,6 +1503,12 @@ export const useAppStore = defineStore('app', () => {
     leadActivities,
     appointments,
     faqs,
+    conversationTemplates,
+    businessFlows,
+    loadingTemplates,
+    loadingFlows,
+    templateError,
+    flowError,
     selectedConversationId,
     toast,
     connectionStatus,
@@ -1330,6 +1551,12 @@ export const useAppStore = defineStore('app', () => {
     loadHistory,
     refreshBusiness,
     refreshFaqs,
+    refreshConversationTemplates,
+    refreshBusinessFlows,
+    attachConversationTemplate,
+    updateBusinessFlow,
+    deleteBusinessFlow,
+    resetFlowTemplateState,
     createFaq,
     updateFaq,
     deleteFaq,

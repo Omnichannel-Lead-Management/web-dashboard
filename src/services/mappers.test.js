@@ -34,10 +34,87 @@ import {
   mapWhatsAppQr,
   mapWhatsAppStatus,
   mapTelegramConnection,
+  mapConversationTemplate,
+  mapConversationFlow,
+  mapFlowSteps,
 } from './mappers.js'
 import { gatewayWsUrl } from '../config.js'
 
+const salonFlow = {
+  start: 'n1',
+  nodes: [
+    { id: 'n1', type: 'message', content: 'Welcome', next: 'n3' },
+    { id: 'n3', type: 'question', content: 'Which package?', next: 'n9' },
+    { id: 'n9', type: 'trigger_service', service: 'appointment', message: 'Book?' },
+  ],
+}
+const tutorFlow = {
+  start: 't1',
+  nodes: [
+    { id: 't1', type: 'message', content: 'Courses', next: 't3' },
+    { id: 't3', type: 'question', content: 'Which subject?', next: 't9' },
+    { id: 't9', type: 'trigger_service', service: 'appointment', message: 'Trial?' },
+  ],
+}
+const photographyFlow = {
+  start: 'p1',
+  nodes: [
+    { id: 'p1', type: 'message', content: 'Packages', next: 'p3' },
+    { id: 'p3', type: 'question', content: 'Which shoot?', next: 'p9' },
+    { id: 'p9', type: 'trigger_service', service: 'appointment', message: 'Availability?' },
+  ],
+}
+
 describe('mappers unit', () => {
+  test('maps templates and flows without mutating source', () => {
+    const template = { id: 'tmpl_1', name: ' Salon ', sector: 'salon', trigger_intents: ['pricing'] }
+    const flow = {
+      id: 'flow_1', business_id: 'biz_1', name: 'Flow', sector: 'salon',
+      is_active: false, is_template: 0, flow: salonFlow, created_by: 'agent_1',
+      created_at: 1_754_042_400, updated_at: '2026-08-03T10:00:00.000Z',
+    }
+    const snapshot = structuredClone(flow)
+    expect(mapConversationTemplate(template, { flow: salonFlow })).toMatchObject({
+      id: 'tmpl_1', name: 'Salon', sector: 'salon', triggerIntents: ['pricing'],
+    })
+    expect(mapConversationFlow(flow)).toMatchObject({
+      id: 'flow_1', businessId: 'biz_1', isActive: false, isTemplate: false,
+      createdAt: 1_754_042_400_000, updatedAt: Date.parse('2026-08-03T10:00:00.000Z'),
+    })
+    expect(flow).toEqual(snapshot)
+  })
+
+  test('flow mapper handles boolean-like values and JSON forms', () => {
+    expect(mapConversationFlow({ is_active: 'false', flow_json: JSON.stringify(salonFlow) })).toMatchObject({
+      isActive: false, flowJson: salonFlow, flowError: '',
+    })
+    expect(mapConversationFlow({ is_active: '1', flow: tutorFlow }).isActive).toBe(true)
+    expect(mapConversationFlow({ flow_json: '{bad' })).toMatchObject({
+      flowJson: null, flowError: 'This flow has malformed step data.',
+    })
+  })
+
+  test('extracts salon, tutor and photography steps from their verified starts', () => {
+    expect(mapFlowSteps(salonFlow)[0]).toMatchObject({ id: 'n1', order: 1, type: 'message' })
+    expect(mapFlowSteps(tutorFlow).some((step) => step.id === 't3' && step.type === 'question')).toBe(true)
+    expect(mapFlowSteps(photographyFlow).some((step) => step.id === 'p9' && step.type === 'trigger_service')).toBe(true)
+  })
+
+  test('step extraction labels branches, prevents loops and handles missing nodes', () => {
+    const branched = {
+      start: 'q', nodes: [
+        { id: 'q', type: 'question', content: 'Choose', next: 'b' },
+        { id: 'b', type: 'branch', conditions: [{ keyword: 'yes', next: 'yes' }, { default: true, next: 'missing' }] },
+        { id: 'yes', type: 'message', content: 'Yes', next: 'q' },
+      ],
+    }
+    const steps = mapFlowSteps(branched, 10)
+    expect(steps.find((step) => step.id === 'yes').branchLabel).toContain('yes')
+    expect(steps.find((step) => step.id === 'missing').type).toBe('missing')
+    expect(steps.filter((step) => step.id === 'q')).toHaveLength(1)
+    expect(() => mapFlowSteps(null)).toThrow('malformed step data')
+  })
+
   test('maps verified Telegram success without exposing the token', () => {
     const source = {
       success: true,

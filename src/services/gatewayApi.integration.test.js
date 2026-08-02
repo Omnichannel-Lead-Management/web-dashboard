@@ -6,6 +6,47 @@ import { describe, expect, test } from 'bun:test'
  * against a local mock fetch.
  */
 describe('gatewayApi integration (mock fetch)', () => {
+  test('template and flow methods use the verified encoded contracts', async () => {
+    const calls = []
+    globalThis.fetch = async (url, options = {}) => {
+      calls.push({ url: String(url), options })
+      return Response.json({ success: true, templates: [], stored: [], flows: [] })
+    }
+    const { gatewayApi } = await import(`./gatewayApi.js?t=flows-${Date.now()}`)
+    await gatewayApi.listTemplates()
+    await gatewayApi.attachTemplate('biz/a & b', { sector: 'salon', created_by: 'agent_1' })
+    await gatewayApi.listFlows('biz/a & b')
+    await gatewayApi.getFlow('flow/a')
+    await gatewayApi.updateFlow('flow/a', { is_active: false })
+    await gatewayApi.deleteFlow('flow/a')
+
+    expect(new URL(calls[0].url).pathname).toBe('/api/templates')
+    expect(new URL(calls[1].url).pathname).toBe('/api/businesses/biz%2Fa%20%26%20b/attach-template')
+    expect(calls[1].options.method).toBe('POST')
+    expect(JSON.parse(calls[1].options.body)).toEqual({ sector: 'salon', created_by: 'agent_1' })
+    expect(new URL(calls[2].url).pathname).toBe('/api/flows')
+    expect(new URL(calls[2].url).searchParams.get('businessId')).toBe('biz/a & b')
+    expect(new URL(calls[3].url).pathname).toBe('/api/flows/flow%2Fa')
+    expect(calls[4].options.method).toBe('PATCH')
+    expect(JSON.parse(calls[4].options.body)).toEqual({ is_active: false })
+    expect(calls[5].options.method).toBe('DELETE')
+    expect(calls.every((call) => !call.url.includes('3003'))).toBe(true)
+  })
+
+  test('flow errors preserve backend message, status and body', async () => {
+    const body = { success: false, error: 'Flow proxy unavailable' }
+    globalThis.fetch = async () => Response.json(body, { status: 503 })
+    const { gatewayApi } = await import(`./gatewayApi.js?t=flow-error-${Date.now()}`)
+    try {
+      await gatewayApi.listFlows('biz_1')
+      throw new Error('Expected flow loading to fail')
+    } catch (error) {
+      expect(error.message).toBe('Flow proxy unavailable')
+      expect(error.status).toBe(503)
+      expect(error.body).toEqual(body)
+    }
+  })
+
   test('Telegram connect uses encoded gateway URL and body-only token', async () => {
     const calls = []
     globalThis.fetch = async (url, options = {}) => {

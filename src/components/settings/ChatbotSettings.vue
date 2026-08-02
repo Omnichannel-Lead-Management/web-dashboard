@@ -2,6 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { RefreshCw, Sparkles } from 'lucide-vue-next'
 import AppButton from '../common/AppButton.vue'
+import TemplatePicker from './TemplatePicker.vue'
 import { useAppStore } from '../../stores/app'
 import { toChatbotConfigPatch } from '../../services/mappers'
 
@@ -220,6 +221,8 @@ onMounted(loadConfig)
         </div>
       </form>
     </template>
+
+    <TemplatePicker />
   </section>
 </template>
 

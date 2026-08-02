@@ -118,6 +118,39 @@ export const gatewayApi = {
     })
   },
 
+  listTemplates() {
+    return request('/api/templates')
+  },
+
+  attachTemplate(businessId, payload) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/attach-template`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    )
+  },
+
+  listFlows(businessId) {
+    const params = new URLSearchParams({ businessId })
+    return request(`/api/flows?${params}`)
+  },
+
+  getFlow(flowId) {
+    return request(`/api/flows/${encodeURIComponent(flowId)}`)
+  },
+
+  updateFlow(flowId, changes) {
+    return request(`/api/flows/${encodeURIComponent(flowId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    })
+  },
+
+  deleteFlow(flowId) {
+    return request(`/api/flows/${encodeURIComponent(flowId)}`, {
+      method: 'DELETE',
+    })
+  },
+
   getMessagingHistory({ messenger_id, platform, limit = 50 }) {
     const params = new URLSearchParams({
       messenger_id,
