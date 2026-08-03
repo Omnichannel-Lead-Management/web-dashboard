@@ -1,3 +1,6 @@
+import { normalizeBusinessSector } from '../constants/businessSectors'
+import { BUSINESS_DAYS } from './businessProfile'
+
 function initialsFrom(name = '') {
   const parts = String(name).trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return '?'
@@ -44,8 +47,11 @@ function faqBoolean(value) {
 function faqTimestamp(value) {
   if (value === null || value === undefined || value === '') return null
   const numeric = Number(value)
-  if (!Number.isInteger(numeric)) return null
-  return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
+  if (Number.isInteger(numeric)) {
+    return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
+  }
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? null : parsed
 }
 
 /** chatbot-builder FAQ record -> the stable shape used by settings. */
@@ -68,18 +74,321 @@ export function mapFaq(faq = {}) {
 
 /** Form FAQ -> documented gateway request contract. */
 export function toFaqPayload(faq) {
+  const seenKeywords = new Set()
   return {
     question: String(faq.question ?? '').trim(),
     answer: String(faq.answer ?? '').trim(),
-    keywords: [
-      ...new Set(
-        (faq.keywords || [])
-          .map((keyword) => String(keyword).trim())
-          .filter(Boolean),
-      ),
-    ],
+    keywords: (faq.keywords || [])
+      .map((keyword) => String(keyword).trim())
+      .filter((keyword) => {
+        const normalized = keyword.toLowerCase()
+        if (!keyword || seenKeywords.has(normalized)) return false
+        seenKeywords.add(normalized)
+        return true
+      }),
     enabled: faq.enabled !== false,
   }
+}
+
+export function faqPayloadWithPendingKeyword(faq, pendingKeyword = '') {
+  return toFaqPayload({
+    ...faq,
+    keywords: [...(faq.keywords || []), pendingKeyword],
+  })
+}
+
+export function faqEditorDraft(faq = {}) {
+  return {
+    question: String(faq.question ?? ''),
+    answer: String(faq.answer ?? ''),
+    keywords: Array.isArray(faq.keywords) ? [...faq.keywords] : [],
+    enabled: faq.enabled !== false,
+    keywordInput: '',
+  }
+}
+
+function configBoolean(value, fallback = true) {
+  if (value === true || value === 1 || value === '1') return true
+  if (value === false || value === 0 || value === '0') return false
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  return fallback
+}
+
+function whatsappBoolean(value, fallback = false) {
+  if (value === true || value === 1 || value === '1') return true
+  if (value === false || value === 0 || value === '0') return false
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  return fallback
+}
+
+function telegramSource(response) {
+  return response?.data ?? response?.result ?? response
+}
+
+/** Verified Telegram connect response -> secret-free settings state. */
+export function mapTelegramConnection(response = {}) {
+  const source = telegramSource(response) || {}
+  const success = response?.success ?? source.success
+  if (success !== true || source.ok !== true) {
+    throw new Error('Gateway returned an invalid Telegram connection response')
+  }
+  return {
+    connected: true,
+    botUsername: String(source.bot_username ?? '').trim(),
+  }
+}
+
+function flowBoolean(value, fallback = true) {
+  if (value === true || value === 1 || value === '1') return true
+  if (value === false || value === 0 || value === '0') return false
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+  return fallback
+}
+
+function flowTimestamp(value) {
+  if (value === null || value === undefined || value === '') return null
+  const numeric = Number(value)
+  if (Number.isFinite(numeric)) {
+    return numeric < 1_000_000_000_000 ? numeric * 1000 : numeric
+  }
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+function parsedFlowJson(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value
+  if (typeof value !== 'string') return null
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed
+      : null
+  } catch {
+    return null
+  }
+}
+
+export function mapConversationTemplate(template = {}, stored = null) {
+  return {
+    id: String(template.id ?? ''),
+    name: String(template.name ?? '').trim(),
+    sector: String(template.sector ?? '').trim(),
+    triggerIntents: Array.isArray(template.trigger_intents)
+      ? [...template.trigger_intents].map(String)
+      : [],
+    flowJson: parsedFlowJson(stored?.flow ?? stored?.flow_json),
+  }
+}
+
+export function mapConversationFlow(source = {}) {
+  const rawFlow = source.flow ?? source.flow_json
+  const flowJson = parsedFlowJson(rawFlow)
+  return {
+    id: String(source.id ?? ''),
+    businessId: String(source.business_id ?? source.businessId ?? ''),
+    name: String(source.name ?? '').trim(),
+    sector: String(source.sector ?? '').trim(),
+    isActive: flowBoolean(source.is_active ?? source.isActive, true),
+    isTemplate: flowBoolean(source.is_template ?? source.isTemplate, false),
+    flowJson,
+    flowError:
+      rawFlow !== undefined && !flowJson
+        ? 'This flow has malformed step data.'
+        : '',
+    triggerIntents: Array.isArray(source.trigger_intents)
+      ? [...source.trigger_intents].map(String)
+      : [],
+    createdBy: String(source.created_by ?? source.createdBy ?? ''),
+    createdAt: flowTimestamp(source.created_at ?? source.createdAt),
+    updatedAt: flowTimestamp(source.updated_at ?? source.updatedAt),
+  }
+}
+
+function nodeText(node) {
+  return String(node.content ?? node.message ?? '').trim()
+}
+
+/** Deterministic, bounded graph traversal for the read-only owner view. */
+export function mapFlowSteps(flowJson, maxSteps = 100) {
+  if (
+    !flowJson ||
+    typeof flowJson !== 'object' ||
+    !Array.isArray(flowJson.nodes)
+  ) {
+    throw new Error('This flow has malformed step data.')
+  }
+  const nodes = new Map(
+    flowJson.nodes
+      .filter((node) => node && typeof node.id === 'string')
+      .map((node) => [node.id, node]),
+  )
+  const start =
+    typeof flowJson.start === 'string' ? flowJson.start : flowJson.nodes[0]?.id
+  if (!start) return []
+  const visited = new Set()
+  const steps = []
+
+  function walk(id, branchLabel = '') {
+    if (!id || visited.has(id) || steps.length >= maxSteps) return
+    const node = nodes.get(id)
+    if (!node) {
+      steps.push({
+        id,
+        order: steps.length + 1,
+        type: 'missing',
+        title: 'Missing referenced step',
+        text: `The flow references “${id}”, but that step is unavailable.`,
+        branchLabel,
+      })
+      return
+    }
+    visited.add(id)
+    const labels = {
+      message: 'Bot message',
+      question: 'Customer question',
+      branch: 'Conditional branch',
+      action: 'Automation action',
+      escalate: 'Human handoff',
+      trigger_service: 'Service handoff',
+    }
+    const text = nodeText(node)
+    steps.push({
+      id: node.id,
+      order: steps.length + 1,
+      type: String(node.type || 'step'),
+      title: labels[node.type] || 'Conversation step',
+      text:
+        text ||
+        (node.type === 'action'
+          ? String(node.action || 'Run automation')
+          : node.type === 'branch'
+            ? 'Choose a path based on the customer response.'
+            : 'Continue the conversation.'),
+      branchLabel,
+    })
+    if (node.type === 'branch' && Array.isArray(node.conditions)) {
+      node.conditions.forEach((condition) => {
+        const label =
+          condition.default === true
+            ? 'Otherwise'
+            : `When response includes “${String(condition.keyword ?? '')}”`
+        walk(condition.next, label)
+      })
+    } else {
+      walk(node.next)
+    }
+  }
+
+  walk(start)
+  return steps
+}
+
+function whatsappSource(response) {
+  return response?.data ?? response?.result ?? response
+}
+
+function qrImageSource(value) {
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  const dataUri = trimmed.match(
+    /^data:image\/(?:png|jpeg|jpg|webp);base64,([a-z0-9+/=\s]+)$/i,
+  )
+  if (dataUri) {
+    const compactPayload = dataUri[1].replace(/\s/g, '')
+    if (
+      compactPayload.length >= 16 &&
+      compactPayload.length % 4 === 0 &&
+      /^[a-z0-9+/]+={0,2}$/i.test(compactPayload)
+    ) {
+      return `${trimmed.slice(0, trimmed.indexOf(',') + 1)}${compactPayload}`
+    }
+    return ''
+  }
+  const compact = trimmed.replace(/\s/g, '')
+  if (
+    compact.length >= 16 &&
+    compact.length % 4 === 0 &&
+    /^[a-z0-9+/]+={0,2}$/i.test(compact)
+  ) {
+    return `data:image/png;base64,${compact}`
+  }
+  return ''
+}
+
+/** Gateway Evolution instance creation response -> stable connection state. */
+export function mapWhatsAppConnection(response = {}) {
+  const source = whatsappSource(response) || {}
+  return {
+    connected: whatsappBoolean(source.connected, false),
+    instanceName: String(source.instance_name ?? source.instanceName ?? ''),
+    qrImage: qrImageSource(source.qrcode ?? source.qrImage),
+    expiresAt: null,
+    status: String(source.status ?? ''),
+  }
+}
+
+/** Gateway Evolution QR response. Throws instead of exposing a broken image. */
+export function mapWhatsAppQr(response = {}) {
+  const source = whatsappSource(response) || {}
+  const qrImage = qrImageSource(source.qrcode ?? source.qrImage)
+  if (!qrImage) throw new Error('Gateway returned an invalid WhatsApp QR code')
+  return { qrImage, expiresAt: null }
+}
+
+/** Gateway Evolution connection-state response -> stable status state. */
+export function mapWhatsAppStatus(response = {}) {
+  const source = whatsappSource(response) || {}
+  return {
+    connected: whatsappBoolean(source.connected, false),
+    instanceName: String(source.instance_name ?? source.instanceName ?? ''),
+    status: String(source.status ?? ''),
+  }
+}
+
+/** chatbot-builder business config -> stable settings state. */
+export function mapChatbotConfig(response = {}) {
+  const source = response?.config ?? response
+  return {
+    businessId: source?.business_id ?? source?.businessId ?? '',
+    chatbotEnabled: configBoolean(
+      source?.chatbot_enabled ?? source?.chatbotEnabled,
+      true,
+    ),
+    welcomeMessage: String(
+      source?.welcome_message ?? source?.welcomeMessage ?? '',
+    ),
+    escalationMessage: String(
+      source?.escalation_message ?? source?.escalationMessage ?? '',
+    ),
+    updatedAt: faqTimestamp(source?.updated_at ?? source?.updatedAt),
+  }
+}
+
+/** Settings draft -> partial chatbot-builder PATCH contract. */
+export function toChatbotConfigPatch(changes = {}) {
+  const patch = {}
+  if ('chatbotEnabled' in changes) {
+    patch.chatbot_enabled = Boolean(changes.chatbotEnabled)
+  }
+  if ('welcomeMessage' in changes) {
+    patch.welcome_message = String(changes.welcomeMessage ?? '').trim()
+  }
+  if ('escalationMessage' in changes) {
+    patch.escalation_message = String(changes.escalationMessage ?? '').trim()
+  }
+  return patch
 }
 
 export function conversationId(platform, messengerId) {
@@ -103,6 +412,7 @@ export function mapConversation(summary) {
 
   return {
     id,
+    businessId: summary.business_id ?? summary.businessId ?? '',
     messenger_id: summary.messenger_id,
     platform: summary.platform,
     name: summary.display_name || summary.messenger_id,
@@ -120,6 +430,10 @@ export function mapConversation(summary) {
     unread: Boolean(summary.is_escalated && !claimed),
     escalated: Boolean(summary.is_escalated),
     claimed,
+    claimedByAgentId: summary.claimed_by_agent_id || '',
+    escalationTag: summary.escalation_tag || '',
+    escalationSummary: summary.escalation_summary || '',
+    escalationRequestedAt: summary.escalation_requested_at || null,
     language: 'EN',
     email: 'Not provided',
     phone: 'Not provided',
@@ -131,10 +445,12 @@ export function mapConversation(summary) {
 /** Compact age like the inbox uses: 45s, 12m, 3h, 5d. */
 function relativeAge(timestamp) {
   if (!timestamp) return ''
-  const seconds = Math.max(
-    0,
-    Math.floor((Date.now() - Number(timestamp)) / 1000),
-  )
+  const parsed =
+    typeof timestamp === 'number' || /^\d+$/.test(String(timestamp))
+      ? Number(timestamp)
+      : new Date(timestamp).getTime()
+  if (Number.isNaN(parsed)) return ''
+  const seconds = Math.max(0, Math.floor((Date.now() - parsed) / 1000))
   if (seconds < 60) return `${seconds}s`
   if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
   if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
@@ -143,7 +459,11 @@ function relativeAge(timestamp) {
 
 function formatDate(timestamp) {
   if (!timestamp) return '—'
-  const date = new Date(Number(timestamp))
+  const value =
+    typeof timestamp === 'number' || /^\d+$/.test(String(timestamp))
+      ? Number(timestamp)
+      : timestamp
+  const date = new Date(value)
   if (Number.isNaN(date.getTime())) return '—'
   return date.toLocaleDateString([], {
     day: '2-digit',
@@ -160,27 +480,38 @@ function formatDate(timestamp) {
  * invented here. `messenger_id` is the identity an agent can actually act on.
  */
 export function mapLead(lead) {
-  const name = lead.display_name || lead.messenger_id || 'Unknown'
+  const source = lead || {}
+  const name = source.display_name || source.messenger_id || 'Unknown'
 
   return {
-    id: lead.id,
-    business_id: lead.business_id,
-    messenger_id: lead.messenger_id,
-    platform: lead.platform,
+    id: source.id,
+    businessId: source.business_id ?? '',
+    business_id: source.business_id,
+    messenger_id: source.messenger_id,
+    platform: source.platform,
     name,
     initials: initialsFrom(name),
-    channel: channelLabel(lead.platform),
-    status: lead.status,
-    score: lead.score ?? 0,
-    interest: lead.service_interest || 'Not specified',
-    agent: lead.assigned_agent_id || 'Unassigned',
-    assigned_agent_id: lead.assigned_agent_id || null,
-    age: relativeAge(lead.created_at),
-    created: formatDate(lead.created_at),
-    notes: lead.notes || 'No notes yet.',
-    tags: Array.isArray(lead.tags) ? lead.tags : [],
-    source: lead.source || '',
-    budget_range: lead.budget_range || '',
+    channel: channelLabel(source.platform),
+    status: source.status || 'new',
+    score: source.score ?? 0,
+    interest: source.service_interest || 'Not specified',
+    serviceInterest: source.service_interest ?? '',
+    agent: source.assigned_agent_id || 'Unassigned',
+    assignedAgentId: source.assigned_agent_id ?? null,
+    assigned_agent_id: source.assigned_agent_id ?? null,
+    age: relativeAge(source.created_at),
+    created: formatDate(source.created_at),
+    notes: source.notes ?? '',
+    tags: Array.isArray(source.tags) ? [...source.tags] : [],
+    source: source.source ?? '',
+    channelSource: source.channel_source ?? '',
+    budgetRange: source.budget_range ?? null,
+    budget_range: source.budget_range ?? null,
+    conversionValue: source.conversion_value ?? null,
+    createdAt: source.created_at ?? null,
+    updatedAt: source.updated_at ?? null,
+    lastContactAt: source.last_contact_at ?? null,
+    convertedAt: source.converted_at ?? null,
     email: 'Not provided',
     phone: 'Not provided',
     location: '—',
@@ -189,14 +520,111 @@ export function mapLead(lead) {
 
 /** Activity trail entry from GET /api/leads/:id. */
 export function mapLeadActivity(activity) {
+  const source = activity || {}
   return {
-    id: activity.id,
-    type: activity.activity_type,
-    description: activity.description,
-    by: activity.performed_by || 'system',
-    at: formatDate(activity.created_at),
-    age: relativeAge(activity.created_at),
+    id: source.id,
+    type: source.activity_type ?? source.action ?? source.type ?? '',
+    description: source.description ?? '',
+    by: source.performed_by ?? '',
+    createdAt: source.created_at ?? null,
+    at: formatDate(source.created_at),
+    age: relativeAge(source.created_at),
+    metadata: source.metadata ?? null,
   }
+}
+
+export function retainVisibleLeadSelection(selectedIds, visibleIds) {
+  const visible = new Set(visibleIds)
+  return selectedIds.filter((id) => visible.has(id))
+}
+
+export function filterVisibleLeads(
+  leads,
+  { search = '', status = '', channel = 'All' } = {},
+) {
+  const normalizedSearch = search.trim().toLowerCase()
+  return leads.filter((lead) => {
+    const searchableText =
+      `${lead.name ?? ''} ${lead.id ?? ''} ${lead.interest ?? ''}`.toLowerCase()
+    const matchesSearch =
+      !normalizedSearch || searchableText.includes(normalizedSearch)
+    const matchesStatus = !status || lead.status === status
+    const matchesChannel = channel === 'All' || lead.channel === channel
+    return matchesSearch && matchesStatus && matchesChannel
+  })
+}
+
+export function summarizeBulkLeadResults(ids, results) {
+  const succeededIds = []
+  const failedIds = []
+  results.forEach((result, index) => {
+    const target = result.status === 'fulfilled' ? succeededIds : failedIds
+    target.push(ids[index])
+  })
+  return { succeededIds, failedIds }
+}
+
+export function isLeadListRequestCurrent(requestId, latestRequestId) {
+  return requestId === latestRequestId
+}
+
+export function leadStatusDrafts(lead) {
+  return {
+    status: lead?.status || 'new',
+    conversionValue:
+      lead?.conversionValue == null ? '' : String(lead.conversionValue),
+  }
+}
+
+export function normalizeConversionValue(value) {
+  if (value == null || (typeof value === 'string' && value.trim() === '')) {
+    return null
+  }
+  const normalized = Number(value)
+  return Number.isFinite(normalized) ? normalized : Number.NaN
+}
+
+export function hasConversionValueChanged(draft, currentValue) {
+  return !Object.is(
+    normalizeConversionValue(draft),
+    normalizeConversionValue(currentValue),
+  )
+}
+
+export function buildLeadStatusPatch({
+  currentStatus,
+  currentConversionValue,
+  status,
+  conversionValue,
+}) {
+  const statusChanged = status !== currentStatus
+  const conversionChanged = hasConversionValueChanged(
+    conversionValue,
+    currentConversionValue,
+  )
+  const conversionRequired = status === 'converted'
+  const normalizedConversion = normalizeConversionValue(conversionValue)
+  const conversionValid =
+    normalizedConversion !== null &&
+    Number.isFinite(normalizedConversion) &&
+    normalizedConversion >= 0
+
+  if (!statusChanged && !(conversionRequired && conversionChanged)) {
+    return { patch: null, error: '' }
+  }
+  if (conversionRequired && !conversionValid) {
+    return {
+      patch: null,
+      error: 'Enter a valid conversion value of zero or more.',
+    }
+  }
+
+  const patch = {}
+  if (statusChanged) patch.status = status
+  if (conversionRequired && (statusChanged || conversionChanged)) {
+    patch.conversion_value = normalizedConversion
+  }
+  return { patch, error: '' }
 }
 
 /**
@@ -229,6 +657,9 @@ export function mapAppointment(appointment) {
 
   return {
     id: appointment.id,
+    businessId: appointment.businessId ?? appointment.business_id ?? '',
+    startTime: startTime || null,
+    endTime: endTime || null,
     date: valid ? start.toISOString().slice(0, 10) : '',
     day: isToday ? `Today · ${dayLabel}` : dayLabel,
     time: `${hour12}:${minutes}`,
@@ -243,6 +674,132 @@ export function mapAppointment(appointment) {
   }
 }
 
+export function mapAvailability(response) {
+  const data = response?.data
+  if (!data || typeof data !== 'object') {
+    return { businessId: '', date: '', slots: [] }
+  }
+
+  const slots = Array.isArray(data.slots)
+    ? data.slots.flatMap((slot) => {
+        if (
+          typeof slot?.startTime !== 'string' ||
+          typeof slot?.endTime !== 'string'
+        ) {
+          return []
+        }
+        const start = new Date(slot?.startTime)
+        const end = new Date(slot?.endTime)
+        if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+          return []
+        }
+        return [
+          {
+            startTime: slot.startTime,
+            endTime: slot.endTime,
+            label: start.toLocaleTimeString([], {
+              hour: 'numeric',
+              minute: '2-digit',
+            }),
+          },
+        ]
+      })
+    : []
+
+  return {
+    businessId: typeof data.businessId === 'string' ? data.businessId : '',
+    date: typeof data.date === 'string' ? data.date : '',
+    slots,
+  }
+}
+
+export function selectAppointmentSlot(form, slot) {
+  return {
+    ...form,
+    startTime: slot.startTime,
+    endTime: slot.endTime,
+  }
+}
+
+export function clearAppointmentSlot(form) {
+  return { ...form, startTime: '', endTime: '' }
+}
+
+export function isAvailabilityRequestCurrent({
+  requestDate,
+  selectedDate,
+  requestId,
+  latestRequestId,
+}) {
+  return requestDate === selectedDate && requestId === latestRequestId
+}
+
+export function isAppointmentSubmissionReady(
+  form,
+  { availabilityLoading = false, submitting = false } = {},
+) {
+  return Boolean(
+    form.customer?.trim() &&
+    form.service &&
+    form.date &&
+    form.startTime &&
+    form.endTime &&
+    !availabilityLoading &&
+    !submitting,
+  )
+}
+
+export function isAvailabilityFullyBooked({
+  date,
+  slots,
+  loading = false,
+  error = '',
+}) {
+  return Boolean(date && !loading && !error && slots.length === 0)
+}
+
+export function appointmentStatusActions(status) {
+  if (status === 'pending') return ['confirmed', 'cancelled']
+  if (status === 'confirmed') return ['completed', 'cancelled']
+  return []
+}
+
+export function filterAppointmentsByStatus(appointments, status) {
+  if (!status || status === 'all') return [...appointments]
+  return appointments.filter((appointment) => appointment.status === status)
+}
+
+function appointmentTimestamp(appointment) {
+  const value = appointment.endTime || appointment.startTime
+  if (!value) return null
+  const timestamp = new Date(value).getTime()
+  return Number.isNaN(timestamp) ? null : timestamp
+}
+
+export function splitAppointmentsByTime(appointments, now = Date.now()) {
+  const upcoming = []
+  const past = []
+
+  for (const appointment of appointments) {
+    const timestamp = appointmentTimestamp(appointment)
+    if (timestamp !== null && timestamp < now) past.push(appointment)
+    else upcoming.push(appointment)
+  }
+
+  upcoming.sort(
+    (left, right) =>
+      (appointmentTimestamp(left) ?? Number.POSITIVE_INFINITY) -
+      (appointmentTimestamp(right) ?? Number.POSITIVE_INFINITY),
+  )
+  past.sort(
+    (left, right) =>
+      (appointmentTimestamp(right) ?? Number.NEGATIVE_INFINITY) -
+      (appointmentTimestamp(left) ?? Number.NEGATIVE_INFINITY),
+  )
+
+  return { upcoming, past }
+}
+
 /**
  * AppointmentForm shape -> the Appointment service's create contract.
  *
@@ -252,6 +809,24 @@ export function mapAppointment(appointment) {
  * from drifting silently, since a mismatch is a 400 rather than a wrong booking.
  */
 export function toAppointmentPayload(form, businessId) {
+  const selectedStart = new Date(form.startTime)
+  const selectedEnd = new Date(form.endTime)
+  if (
+    form.startTime &&
+    form.endTime &&
+    !Number.isNaN(selectedStart.getTime()) &&
+    !Number.isNaN(selectedEnd.getTime())
+  ) {
+    return {
+      businessId,
+      customerName: form.customer,
+      service: form.service,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      notes: form.notes || undefined,
+    }
+  }
+
   const [rawHour, rawMinute = '0'] = String(form.time || '').split(':')
   let hour = Number(rawHour)
   if (form.ampm === 'PM' && hour < 12) hour += 12
@@ -310,6 +885,33 @@ function mediaKind(metadata) {
       : null
 }
 
+function mediaImageUrl(metadata, fallback) {
+  let parsed = metadata
+  if (typeof metadata === 'string') {
+    try {
+      parsed = JSON.parse(metadata)
+    } catch {
+      return ''
+    }
+  }
+  const value =
+    parsed?.image_url ?? parsed?.imageUrl ?? parsed?.url ?? fallback ?? ''
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol === 'https:') return trimmed
+    if (
+      url.protocol === 'http:' &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    )
+      return trimmed
+  } catch {
+    return ''
+  }
+  return ''
+}
+
 export function mapHistoryMessage(entry) {
   const sender =
     entry.from === 'user'
@@ -318,11 +920,91 @@ export function mapHistoryMessage(entry) {
         ? 'agent'
         : 'bot'
 
+  const imageUrl = mediaImageUrl(
+    entry.metadata,
+    entry.image_url ?? entry.imageUrl,
+  )
   return {
     id: entry.id ?? `${entry.timestamp}-${entry.from}`,
     sender,
     text: entry.text,
-    kind: mediaKind(entry.metadata),
+    kind: mediaKind(entry.metadata) || (imageUrl ? 'photo' : null),
+    imageUrl,
     time: formatTime(entry.timestamp),
   }
+}
+function emptyBusinessHours() {
+  return Object.fromEntries(
+    BUSINESS_DAYS.map((day) => [day, { enabled: false, open: '', close: '' }]),
+  )
+}
+
+function normalizeBusinessHours(value) {
+  const result = emptyBusinessHours()
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return result
+  for (const day of BUSINESS_DAYS) {
+    const source = value[day]
+    if (!source || typeof source !== 'object' || Array.isArray(source)) continue
+    result[day] = {
+      enabled: source.enabled === true,
+      open: typeof source.open === 'string' ? source.open.trim() : '',
+      close: typeof source.close === 'string' ? source.close.trim() : '',
+    }
+  }
+  return result
+}
+
+export function mapBusinessProfile(source = {}) {
+  const hours = source.business_hours ?? source.businessHours
+  const updated = source.updated_at ?? source.updatedAt
+  return {
+    id: String(source.id ?? '').trim(),
+    name: String(source.name ?? '').trim(),
+    sector: normalizeBusinessSector(source.sector),
+    ownerEmail: String(source.owner_email ?? source.ownerEmail ?? '').trim(),
+    timezone: String(source.timezone ?? '').trim(),
+    contactPhone: String(
+      source.contact_phone ?? source.contactPhone ?? '',
+    ).trim(),
+    address: String(source.address ?? '').trim(),
+    businessHours: normalizeBusinessHours(hours),
+    updatedAt: updated == null ? null : updated,
+  }
+}
+
+function businessHoursPayload(hours) {
+  return Object.fromEntries(
+    BUSINESS_DAYS.map((day) => {
+      const value = hours[day]
+      return [
+        day,
+        value.enabled
+          ? { enabled: true, open: value.open, close: value.close }
+          : { enabled: false },
+      ]
+    }),
+  )
+}
+
+export function toBusinessProfilePatch(original, draft) {
+  const before = mapBusinessProfile(original)
+  const after = mapBusinessProfile(draft)
+  const patch = {}
+  const fields = [
+    ['name', 'name'],
+    ['sector', 'sector'],
+    ['ownerEmail', 'owner_email'],
+    ['timezone', 'timezone'],
+    ['contactPhone', 'contact_phone'],
+    ['address', 'address'],
+  ]
+  for (const [frontend, backend] of fields) {
+    if (before[frontend] !== after[frontend]) patch[backend] = after[frontend]
+  }
+  if (
+    JSON.stringify(before.businessHours) !== JSON.stringify(after.businessHours)
+  ) {
+    patch.business_hours = businessHoursPayload(after.businessHours)
+  }
+  return patch
 }

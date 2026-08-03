@@ -17,8 +17,12 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message = body?.error || `Request failed (${response.status})`
-    throw new Error(message)
+    const message =
+      body?.message || body?.error || `Request failed (${response.status})`
+    const error = new Error(message)
+    error.status = response.status
+    error.body = body
+    throw error
   }
 
   return body
@@ -36,6 +40,24 @@ export const gatewayApi = {
     return request(`/api/businesses/${encodeURIComponent(id)}`)
   },
 
+  getBusinessAnalytics(businessId, { from, to, timezone } = {}) {
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    if (timezone) params.set('timezone', timezone)
+    const query = params.toString()
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/analytics${query ? `?${query}` : ''}`,
+    )
+  },
+
+  updateBusiness(id, changes) {
+    return request(`/api/businesses/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    })
+  },
+
   listConversations(businessId) {
     return request(
       `/api/businesses/${encodeURIComponent(businessId)}/conversations`,
@@ -49,6 +71,25 @@ export const gatewayApi = {
         method: 'POST',
         body: JSON.stringify({ bot_token: botToken }),
       },
+    )
+  },
+
+  connectWhatsApp(businessId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/channels/whatsapp-evolution`,
+      { method: 'POST' },
+    )
+  },
+
+  getWhatsAppQr(businessId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/channels/whatsapp-evolution/qrcode`,
+    )
+  },
+
+  getWhatsAppStatus(businessId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/channels/whatsapp-evolution/status`,
     )
   },
 
@@ -84,6 +125,50 @@ export const gatewayApi = {
     })
   },
 
+  getChatbotConfig(businessId) {
+    return request(`/api/businesses/${encodeURIComponent(businessId)}/config`)
+  },
+
+  updateChatbotConfig(businessId, patch) {
+    return request(`/api/businesses/${encodeURIComponent(businessId)}/config`, {
+      method: 'PATCH',
+      body: JSON.stringify(patch),
+    })
+  },
+
+  listTemplates() {
+    return request('/api/templates')
+  },
+
+  attachTemplate(businessId, payload) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/attach-template`,
+      { method: 'POST', body: JSON.stringify(payload) },
+    )
+  },
+
+  listFlows(businessId) {
+    const params = new URLSearchParams({ businessId })
+    return request(`/api/flows?${params}`)
+  },
+
+  getFlow(flowId) {
+    return request(`/api/flows/${encodeURIComponent(flowId)}`)
+  },
+
+  updateFlow(flowId, changes) {
+    return request(`/api/flows/${encodeURIComponent(flowId)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    })
+  },
+
+  deleteFlow(flowId) {
+    return request(`/api/flows/${encodeURIComponent(flowId)}`, {
+      method: 'DELETE',
+    })
+  },
+
   getMessagingHistory({ messenger_id, platform, limit = 50 }) {
     const params = new URLSearchParams({
       messenger_id,
@@ -113,17 +198,17 @@ export const gatewayApi = {
     return request(`/api/leads/${encodeURIComponent(id)}?${params}`)
   },
 
-  updateLead(id, businessId, changes) {
+  updateLead(id, businessId, payload) {
     return request(`/api/leads/${encodeURIComponent(id)}`, {
       method: 'PATCH',
-      body: JSON.stringify({ business_id: businessId, ...changes }),
+      body: JSON.stringify({ business_id: businessId, ...payload }),
     })
   },
 
-  assignLead(id, businessId, agentId) {
+  assignLead(id, businessId, payload) {
     return request(`/api/leads/${encodeURIComponent(id)}/assign`, {
       method: 'POST',
-      body: JSON.stringify({ business_id: businessId, agent_id: agentId }),
+      body: JSON.stringify({ business_id: businessId, ...payload }),
     })
   },
 
@@ -138,6 +223,11 @@ export const gatewayApi = {
     return request(`/api/appointments?${params}`)
   },
 
+  getAvailability({ businessId, date }) {
+    const params = new URLSearchParams({ businessId, date })
+    return request(`/api/appointments/availability?${params}`)
+  },
+
   createAppointment(payload) {
     return request('/api/appointments', {
       method: 'POST',
@@ -150,5 +240,30 @@ export const gatewayApi = {
       method: 'PATCH',
       body: JSON.stringify({ businessId, status }),
     })
+  },
+
+  // Prepared frontend contract. The gateway does not expose these routes yet.
+  listNotifications(businessId, { unread, type } = {}) {
+    const params = new URLSearchParams()
+    if (unread !== undefined) params.set('unread', String(Boolean(unread)))
+    if (type) params.set('type', type)
+    const query = params.size ? `?${params}` : ''
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/notifications${query}`,
+    )
+  },
+
+  markNotificationRead(businessId, notificationId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/notifications/${encodeURIComponent(notificationId)}/read`,
+      { method: 'PATCH' },
+    )
+  },
+
+  markAllNotificationsRead(businessId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/notifications/read-all`,
+      { method: 'POST' },
+    )
   },
 }

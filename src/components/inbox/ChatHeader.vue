@@ -10,6 +10,8 @@ defineProps({
     type: Object,
     required: true,
   },
+  agentId: { type: String, default: '' },
+  escalationEnabled: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['claim', 'release', 'back'])
@@ -48,26 +50,26 @@ const emit = defineEmits(['claim', 'release', 'back'])
     <div class="actions">
       <AppBadge
         v-if="
-          conversation.id && (conversation.escalated || conversation.claimed)
+          escalationEnabled && conversation.id && (conversation.escalated || conversation.claimed)
         "
         :tone="conversation.claimed ? 'success' : 'warning'"
       >
-        {{ conversation.claimed ? 'Claimed by you' : 'Queued for agent' }}
+        {{ conversation.claimed ? 'Claimed by you' : conversation.claimedByOther ? 'Claimed by another agent' : 'Queued for agent' }}
       </AppBadge>
       <AppButton
-        v-if="conversation.id && !conversation.claimed"
+        v-if="escalationEnabled && conversation.id && !conversation.claimed && !conversation.claimedByOther"
         class="claim"
         @click="$emit('claim')"
       >
         Claim chat
       </AppButton>
       <AppButton
-        v-else-if="conversation.id"
+        v-else-if="escalationEnabled && conversation.id && conversation.claimed"
         size="sm"
         variant="secondary"
         @click="$emit('release')"
       >
-        Release
+        Release back to queue
       </AppButton>
     </div>
   </header>

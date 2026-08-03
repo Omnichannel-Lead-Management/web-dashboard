@@ -3,6 +3,7 @@ import { computed, inject } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../../stores/app'
 import AppNavigation from './AppNavigation.vue'
+import NotificationBell from '../notifications/NotificationBell.vue'
 
 const router = useRouter()
 const store = useAppStore()
@@ -57,6 +58,7 @@ function logOut() {
         <i />
         {{ liveLabel }}
       </span>
+      <NotificationBell />
       <button @click="logOut" title="Sign out">
         <span>
           <b>{{ displayedBusinessName || 'Business' }}</b>

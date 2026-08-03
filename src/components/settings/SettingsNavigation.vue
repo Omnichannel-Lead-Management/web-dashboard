@@ -5,7 +5,12 @@ import {
   MessageCircleMore,
   Bot,
   Building2,
-  BookOpenText,
+  MessageSquareText,
+  Globe2,
+  Bell,
+  Image,
+  Users,
+  ChartNoAxesCombined,
 } from 'lucide-vue-next'
 
 defineProps({
@@ -21,8 +26,13 @@ const items = [
   ['channels', 'Connected channels', Radio],
   ['telegram', 'Telegram', TentTree],
   ['whatsapp', 'WhatsApp', MessageCircleMore],
+  ['webchat', 'Web chat', Globe2],
+  ['notifications', 'Notification Centre', Bell],
+  ['images', 'Image attachments', Image],
+  ['escalations', 'Escalation queue', Users],
+  ['analytics', 'Analytics', ChartNoAxesCombined],
   ['chatbot', 'Chatbot settings', Bot],
-  ['faqs', 'FAQs & answers', BookOpenText],
+  ['faqs', 'FAQs & answers', MessageSquareText],
   ['profile', 'Business profile', Building2],
 ]
 </script>

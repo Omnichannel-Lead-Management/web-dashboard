@@ -1,5 +1,5 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AppShell from '../components/layout/AppShell.vue'
 import AppointmentForm from '../components/appointments/AppointmentForm.vue'
@@ -7,14 +7,26 @@ import { useAppStore } from '../stores/app'
 const store = useAppStore()
 const route = useRoute()
 const router = useRouter()
+const appointmentForm = ref(null)
+const submitting = ref(false)
 
 const selectedLead = computed(() =>
   store.leads.find((lead) => lead.id === route.query.lead),
 )
 
-function createAppointment(appointment) {
-  store.addAppointment(appointment)
-  router.push('/appointments')
+async function createAppointment(appointment) {
+  if (submitting.value) return
+  submitting.value = true
+  try {
+    await store.addAppointment(appointment)
+    await router.push('/appointments')
+  } catch (error) {
+    if (error?.status === 409) {
+      await appointmentForm.value?.refreshAvailabilityAfterConflict()
+    }
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 <template>
@@ -30,7 +42,13 @@ function createAppointment(appointment) {
           <p>Book a service and assign a team member.</p>
         </div>
       </div>
-      <AppointmentForm :lead="selectedLead" @submit="createAppointment" />
+      <AppointmentForm
+        ref="appointmentForm"
+        :lead="selectedLead"
+        :business-id="store.businessId"
+        :submitting="submitting"
+        @submit="createAppointment"
+      />
     </div>
   </AppShell>
 </template>

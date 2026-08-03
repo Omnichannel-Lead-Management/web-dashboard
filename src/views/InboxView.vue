@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, nextTick, provide } from 'vue'
+import { ref, computed, nextTick, provide, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppShell from '../components/layout/AppShell.vue'
 import ConversationList from '../components/inbox/ConversationList.vue'
@@ -7,13 +7,6 @@ import ChatHeader from '../components/inbox/ChatHeader.vue'
 import ChatMessage from '../components/inbox/ChatMessage.vue'
 import ChatComposer from '../components/inbox/ChatComposer.vue'
 import { useAppStore } from '../stores/app'
-import {
-  inboxPreviewAgent,
-  inboxPreviewBusiness,
-  inboxPreviewConversations,
-  inboxPreviewMessages,
-  inboxPreviewSelectedConversationId,
-} from '../data/inboxPreviewData'
 
 const store = useAppStore()
 const route = useRoute()
@@ -23,21 +16,56 @@ const isInboxPreview = computed(
 const conversationSearch = ref('')
 const conversationFilter = ref('All')
 const activeMobilePanel = ref('list')
-const previewConversations = ref(structuredClone(inboxPreviewConversations))
-const previewMessages = ref(structuredClone(inboxPreviewMessages))
-const previewSelectedConversationId = ref(inboxPreviewSelectedConversationId)
+const previewConversations = ref([])
+const previewMessages = ref({})
+const previewSelectedConversationId = ref('')
+const previewIdentity = ref(null)
+
+if (import.meta.env.DEV) {
+watch(
+    isInboxPreview,
+    async (enabled) => {
+      if (!enabled) return
+
+      try {
+        const preview = await import('../data/inboxPreviewData.js')
+        if (!isInboxPreview.value) return
+        previewConversations.value = structuredClone(
+          preview.inboxPreviewConversations,
+        )
+        previewMessages.value = structuredClone(preview.inboxPreviewMessages)
+        previewSelectedConversationId.value =
+          preview.inboxPreviewSelectedConversationId
+        previewIdentity.value = {
+          business: preview.inboxPreviewBusiness,
+          agent: preview.inboxPreviewAgent,
+          connectionStatus: 'online',
+        }
+      } catch (error) {
+        console.error('Failed to load inbox preview data:', error)
+      }
+    },
+    { immediate: true },
+  )
+}
 
 provide(
   'inboxPreviewIdentity',
-  computed(() =>
-    isInboxPreview.value
-      ? {
-          business: inboxPreviewBusiness,
-          agent: inboxPreviewAgent,
-          connectionStatus: 'online',
-        }
-      : null,
-  ),
+  computed(() => (isInboxPreview.value ? previewIdentity.value : null)),
+)
+
+watch(
+  () => route.query.conversation,
+  async (id) => {
+    if (typeof id !== 'string' || !id || isInboxPreview.value) return
+    if (!store.conversations.some((item) => item.id === id))
+      await store.refreshConversations()
+    if (!store.conversations.some((item) => item.id === id)) return
+    store.selectedConversationId = id
+    store.loadHistory(id)
+    activeMobilePanel.value = 'chat'
+  },
+  { immediate: true },
 )
 
 const emptyConversation = {
@@ -58,12 +86,20 @@ const selectedConversationId = computed(() =>
 )
 
 const selectedConversation = computed(
-  () =>
-    conversations.value.find(
+  () => {
+    const selected = conversations.value.find(
       (conversation) => conversation.id === selectedConversationId.value,
     ) ||
     conversations.value[0] ||
-    emptyConversation,
+    emptyConversation
+    if (!selected.id) return selected
+    const claimedByAgentId = selected.claimedByAgentId || ''
+    return {
+      ...selected,
+      claimed: Boolean(claimedByAgentId && claimedByAgentId === store.agentId),
+      claimedByOther: Boolean(claimedByAgentId && claimedByAgentId !== store.agentId),
+    }
+  },
 )
 
 const selectedMessages = computed(
@@ -71,6 +107,12 @@ const selectedMessages = computed(
     (isInboxPreview.value ? previewMessages.value : store.messages)[
       selectedConversation.value.id
     ] || [],
+)
+
+const composerDisabled = computed(
+  () =>
+    !selectedConversation.value.id ||
+    (store.escalationQueueAvailable && !selectedConversation.value.claimed),
 )
 
 function selectConversation(id) {
@@ -140,6 +182,7 @@ function releaseConversation(id) {
         :class="{ hiddenMobile: activeMobilePanel === 'chat' }"
         :conversations="conversations"
         :selected-id="selectedConversation.id"
+        :escalation-enabled="store.escalationQueueAvailable"
         v-model:search="conversationSearch"
         v-model:filter="conversationFilter"
         @select="selectConversation"
@@ -151,6 +194,8 @@ function releaseConversation(id) {
         <ChatHeader
           v-if="selectedConversation.id"
           :conversation="selectedConversation"
+          :agent-id="store.agentId"
+          :escalation-enabled="store.escalationQueueAvailable"
           @back="activeMobilePanel = 'list'"
           @claim="claimConversation()"
           @release="releaseConversation(selectedConversation.id)"
@@ -179,7 +224,7 @@ function releaseConversation(id) {
         </div>
         <ChatComposer
           v-if="selectedConversation.id"
-          :disabled="!selectedConversation.id || !selectedConversation.claimed"
+          :disabled="composerDisabled"
           :name="(selectedConversation.name || 'Customer').split(' ')[0]"
           @send="sendMessage"
         />

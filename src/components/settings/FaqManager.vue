@@ -12,6 +12,11 @@ import {
 } from 'lucide-vue-next'
 import AppButton from '../common/AppButton.vue'
 import { useAppStore } from '../../stores/app'
+import {
+  faqEditorDraft,
+  faqPayloadWithPendingKeyword,
+  toFaqPayload,
+} from '../../services/mappers'
 
 const QUESTION_LIMIT = 160
 const ANSWER_LIMIT = 1000
@@ -54,6 +59,7 @@ const confirmingDeleteId = ref('')
 const togglingId = ref('')
 const showForm = ref(false)
 const editingId = ref('')
+const originalEdit = ref(null)
 const form = reactive({ question: '', answer: '', keywords: [], enabled: true })
 
 const starterSuggestions = computed(() => {
@@ -82,6 +88,13 @@ const formValid = computed(
     form.answer.trim().length > 0 &&
     form.answer.length <= ANSWER_LIMIT,
 )
+const formChanged = computed(() => {
+  if (!editingId.value || !originalEdit.value) return true
+  return (
+    JSON.stringify(faqPayloadWithPendingKeyword(form, keywordInput.value)) !==
+    JSON.stringify(toFaqPayload(originalEdit.value))
+  )
+})
 
 async function loadFaqs() {
   loadError.value = ''
@@ -93,12 +106,14 @@ async function loadFaqs() {
 }
 
 function resetForm() {
-  form.question = ''
-  form.answer = ''
-  form.keywords = []
-  form.enabled = true
-  keywordInput.value = ''
+  const draft = faqEditorDraft()
+  form.question = draft.question
+  form.answer = draft.answer
+  form.keywords = draft.keywords
+  form.enabled = draft.enabled
+  keywordInput.value = draft.keywordInput
   editingId.value = ''
+  originalEdit.value = null
   formError.value = ''
 }
 
@@ -112,13 +127,20 @@ function openCreate(question = '') {
 function openEdit(faq) {
   confirmingDeleteId.value = ''
   showForm.value = false
-  form.question = faq.question
-  form.answer = faq.answer
-  form.keywords = [...faq.keywords]
-  form.enabled = faq.enabled
+  const draft = faqEditorDraft(faq)
+  form.question = draft.question
+  form.answer = draft.answer
+  form.keywords = draft.keywords
+  form.enabled = draft.enabled
   editingId.value = faq.id
-  keywordInput.value = ''
+  keywordInput.value = draft.keywordInput
   formError.value = ''
+  originalEdit.value = {
+    question: faq.question,
+    answer: faq.answer,
+    keywords: [...faq.keywords],
+    enabled: faq.enabled,
+  }
   showForm.value = true
 }
 
@@ -147,17 +169,16 @@ function handleKeywordKeydown(event) {
 }
 
 async function saveFaq() {
-  if (!formValid.value || saving.value) return
+  if (saving.value) return
   addKeyword()
+  if (!formValid.value || (editingId.value && !formChanged.value)) return
   saving.value = true
   formError.value = ''
   try {
     if (editingId.value) {
       await store.updateFaq(editingId.value, form)
-      store.notify('FAQ updated')
     } else {
       await store.createFaq(form)
-      store.notify('FAQ created')
     }
     closeForm()
   } catch (error) {
@@ -169,16 +190,12 @@ async function saveFaq() {
 
 async function toggleFaq(faq) {
   confirmingDeleteId.value = ''
-  const previous = faq.enabled
-  const next = !previous
-  faq.enabled = next
+  const next = !faq.enabled
   togglingId.value = faq.id
   try {
-    await store.updateFaq(faq.id, { ...faq, enabled: next })
-    store.notify(`FAQ ${next ? 'enabled' : 'disabled'}`)
-  } catch (error) {
-    faq.enabled = previous
-    store.notify(error.message || 'FAQ status could not be changed.', 'error')
+    await store.updateFaq(faq.id, { enabled: next })
+  } catch {
+    // The store rolls the optimistic toggle back and reports the API error.
   } finally {
     togglingId.value = ''
   }
@@ -194,13 +211,16 @@ async function removeFaq(faq) {
   deletingId.value = faq.id
   try {
     await store.deleteFaq(faq.id)
-    store.notify('FAQ deleted')
-  } catch (error) {
-    store.notify(error.message || 'FAQ could not be deleted.', 'error')
+  } catch {
+    // The store keeps the FAQ and reports the API error.
   } finally {
     deletingId.value = ''
     confirmingDeleteId.value = ''
   }
+}
+
+function keepFaq() {
+  confirmingDeleteId.value = ''
 }
 
 onMounted(loadFaqs)
@@ -228,7 +248,11 @@ onMounted(loadFaqs)
       Select a business before managing FAQs.
     </div>
 
-    <div v-if="showForm" class="editor" aria-labelledby="faq-editor-title">
+    <div
+      v-if="showForm && !editingId"
+      class="editor"
+      aria-labelledby="faq-editor-title"
+    >
       <div class="editor-title">
         <h3 id="faq-editor-title">New FAQ</h3>
         <button
@@ -332,7 +356,12 @@ onMounted(loadFaqs)
     >
       <span class="starter-icon"><BookOpenText :size="22" /></span>
       <h3>Add your first FAQ</h3>
-      <p>Start from a common question or write your own.</p>
+      <p>
+        No FAQs yet — your chatbot will fall back to the AI assistant for every
+        question.
+      </p>
+      <AppButton size="sm" @click="openCreate()">Add your first FAQ</AppButton>
+      <p>Or start from a common question:</p>
       <div class="starter-list">
         <button
           v-for="starter in starterSuggestions"
@@ -474,7 +503,7 @@ onMounted(loadFaqs)
                 <AppButton
                   type="submit"
                   :loading="saving"
-                  :disabled="!formValid"
+                  :disabled="!formValid || !formChanged"
                 >
                   {{ saving ? 'Saving…' : 'Save changes' }}
                 </AppButton>
@@ -531,6 +560,15 @@ onMounted(loadFaqs)
             >
               <Trash2 :size="16" />
               {{ confirmingDeleteId === faq.id ? 'Confirm delete' : 'Delete' }}
+            </button>
+            <button
+              v-if="confirmingDeleteId === faq.id"
+              type="button"
+              class="icon-button"
+              :aria-label="`Keep ${faq.question}`"
+              @click="keepFaq"
+            >
+              Keep
             </button>
           </div>
         </article>

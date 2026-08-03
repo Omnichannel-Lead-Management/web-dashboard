@@ -1,47 +1,36 @@
 <script setup>
-import { ref, watch, reactive, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  Send,
-  MessageCircleMore,
-  Globe2,
-  Check,
-  Copy,
-  ShieldCheck,
-} from 'lucide-vue-next'
+import { Send, MessageCircleMore, Globe2 } from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
 import SettingsNavigation from '../components/settings/SettingsNavigation.vue'
 import FaqManager from '../components/settings/FaqManager.vue'
+import ChatbotSettings from '../components/settings/ChatbotSettings.vue'
+import WhatsAppConnect from '../components/settings/WhatsAppConnect.vue'
+import TelegramConnect from '../components/settings/TelegramConnect.vue'
+import BusinessProfileSettings from '../components/settings/BusinessProfileSettings.vue'
+import WebChatSettings from '../components/settings/WebChatSettings.vue'
+import NotificationSettings from '../components/settings/NotificationSettings.vue'
+import ImageAttachmentSettings from '../components/settings/ImageAttachmentSettings.vue'
+import EscalationQueueSettings from '../components/settings/EscalationQueueSettings.vue'
+import AnalyticsSettings from '../components/settings/AnalyticsSettings.vue'
 import AppButton from '../components/common/AppButton.vue'
-import AppBadge from '../components/common/AppBadge.vue'
-import { gatewayApi } from '../services/gatewayApi'
 import { useAppStore } from '../stores/app'
+import { activeBusinessForTenant } from '../services/businessProfile'
+import { webChatEnabled } from '../config'
 
 const store = useAppStore()
 const route = useRoute()
 const router = useRouter()
 const activeSection = ref(route.query.section || 'channels')
 
-/** Real business record; channel state below is derived from it, not assumed. */
-const business = ref(null)
-const businessProfile = reactive({
-  name: store.businessName || 'My Business',
-  id: store.businessId || '',
-  sector: '',
-  email: '',
-  city: '',
-  phone: '',
-})
-
+const activeBusiness = computed(() =>
+  activeBusinessForTenant(store.business, store.businessId),
+)
 async function loadBusiness() {
   if (!store.businessId) return
   try {
-    const result = await gatewayApi.getBusiness(store.businessId)
-    business.value = result.business
-    businessProfile.name = result.business.name || businessProfile.name
-    businessProfile.id = result.business.id
-    businessProfile.sector = result.business.sector || ''
-    businessProfile.email = result.business.owner_email || ''
+    await store.refreshBusiness()
   } catch (error) {
     store.notify(error.message || 'Failed to load business', 'error')
   }
@@ -52,27 +41,24 @@ onMounted(loadBusiness)
 const channels = computed(() => [
   {
     name: 'Telegram',
-    connected: Boolean(business.value?.telegram_connected),
-    detail: business.value?.telegram_bot_username
-      ? `@${business.value.telegram_bot_username}`
+    connected: Boolean(activeBusiness.value?.telegram_connected),
+    detail: activeBusiness.value?.telegram_bot_username
+      ? `@${activeBusiness.value.telegram_bot_username}`
       : 'Paste a bot token to connect',
   },
   {
     name: 'WhatsApp',
-    connected: Boolean(business.value?.whatsapp_connected),
-    detail: business.value?.whatsapp_instance_name
-      ? `Instance ${business.value.whatsapp_instance_name}`
+    connected: Boolean(activeBusiness.value?.whatsapp_connected),
+    detail: activeBusiness.value?.whatsapp_instance_name
+      ? `Instance ${activeBusiness.value.whatsapp_instance_name}`
       : 'Scan a QR to link a number',
   },
   {
     name: 'Web chat',
-    connected: true,
-    detail: 'Widget active',
+    connected: webChatEnabled,
+    detail: webChatEnabled ? 'Prototype enabled' : 'Preview unavailable',
   },
 ])
-const telegramToken = ref('')
-const telegramBusy = ref(false)
-
 watch(
   () => route.query.section,
   (section) => {
@@ -85,27 +71,6 @@ watch(
 function selectSection(sectionId) {
   activeSection.value = sectionId
   router.replace({ query: { section: sectionId } })
-}
-
-function showSavedMessage(message = 'Settings saved') {
-  store.notify(message)
-}
-
-async function connectTelegramBot() {
-  if (!telegramToken.value.trim()) {
-    store.notify('Paste a BotFather token first', 'error')
-    return
-  }
-
-  telegramBusy.value = true
-  try {
-    await store.connectTelegram(telegramToken.value.trim())
-    telegramToken.value = ''
-  } catch (error) {
-    store.notify(error.message || 'Telegram connect failed', 'error')
-  } finally {
-    telegramBusy.value = false
-  }
 }
 </script>
 <template>
@@ -148,158 +113,50 @@ async function connectTelegramBot() {
                 @click="
                   selectSection(
                     channel.name === 'Web chat'
-                      ? 'chatbot'
+                      ? 'webchat'
                       : channel.name.toLowerCase(),
                   )
                 "
               >
-                {{ channel.connected ? 'Manage' : 'Connect' }}
+                {{
+                  channel.name === 'Web chat'
+                    ? 'Preview'
+                    : channel.connected
+                      ? 'Manage'
+                      : 'Connect'
+                }}
               </AppButton>
             </article>
           </template>
           <template v-else-if="activeSection === 'telegram'">
-            <h2>Telegram setup</h2>
-            <p class="intro">
-              Connect a BotFather token. Gateway public URL:
-              <code>
-                {{
-                  store.businessId
-                    ? `business ${store.businessId}`
-                    : 'create a business first'
-                }}
-              </code>
-            </p>
-            <div class="status">
-              <Check :size="20" />
-              <div>
-                <b>{{ store.businessName || 'Your business' }}</b>
-                <small>
-                  Webhook target uses PUBLIC_BASE_URL on the gateway
-                </small>
-              </div>
-            </div>
-            <h3>Connect bot</h3>
-            <ol>
-              <li>Open @BotFather in Telegram.</li>
-              <li>Create a bot and copy its token.</li>
-              <li>Paste the token below and connect.</li>
-            </ol>
-            <label class="field">
-              Bot token
-              <input
-                v-model="telegramToken"
-                type="password"
-                placeholder="Paste your BotFather token"
-                autocomplete="off"
-              />
-            </label>
-            <small class="security">
-              <ShieldCheck :size="14" />
-              Token is sent to the gateway and stored per business. Make sure
-              PUBLIC_BASE_URL is reachable by Telegram.
-            </small>
-            <AppButton :disabled="telegramBusy" @click="connectTelegramBot">
-              {{ telegramBusy ? 'Connecting…' : 'Connect Telegram' }}
-            </AppButton>
+            <TelegramConnect />
           </template>
           <template v-else-if="activeSection === 'whatsapp'">
-            <h2>Connect WhatsApp</h2>
-            <p class="intro">
-              Scan the QR code with WhatsApp on your business phone.
-            </p>
-            <div class="qr">
-              <div>
-                LOOP
-                <br />
-                QR
-              </div>
-              <ol>
-                <li>Open WhatsApp → Settings → Linked devices</li>
-                <li>Tap “Link a device”</li>
-                <li>Point your phone at this screen</li>
-              </ol>
-            </div>
-            <AppButton @click="showSavedMessage('QR code refreshed')">
-              Refresh QR code
-            </AppButton>
+            <WhatsAppConnect />
+          </template>
+          <template v-else-if="activeSection === 'webchat'">
+            <WebChatSettings />
+          </template>
+          <template v-else-if="activeSection === 'notifications'">
+            <NotificationSettings />
+          </template>
+          <template v-else-if="activeSection === 'images'">
+            <ImageAttachmentSettings />
+          </template>
+          <template v-else-if="activeSection === 'escalations'">
+            <EscalationQueueSettings />
+          </template>
+          <template v-else-if="activeSection === 'analytics'">
+            <AnalyticsSettings />
           </template>
           <template v-else-if="activeSection === 'chatbot'">
-            <h2>Chatbot settings</h2>
-            <p class="intro">
-              Let Loop answer common questions and qualify leads automatically.
-            </p>
-            <div class="toggle-row">
-              <div>
-                <b>Automatic replies</b>
-                <small>Reply instantly using your business information.</small>
-              </div>
-              <button
-                role="switch"
-                :aria-checked="store.chatbotEnabled"
-                class="toggle"
-                :class="{ on: store.chatbotEnabled }"
-                @click="store.toggleChatbot"
-              >
-                <i />
-              </button>
-            </div>
-            <label class="field">
-              Welcome message
-              <textarea rows="3">
-Hi! Welcome to Elegant Salon. How can we help today?</textarea>
-            </label>
-            <label class="field">
-              Escalation message
-              <textarea rows="3">
-I’ll connect you with a member of our team who can help.</textarea>
-            </label>
-            <AppButton @click="showSavedMessage('Chatbot messages saved')">
-              Save changes
-            </AppButton>
+            <ChatbotSettings :business-name="store.businessName" />
           </template>
           <template v-else-if="activeSection === 'faqs'">
-            <FaqManager :sector="business?.sector || businessProfile.sector" />
+            <FaqManager :sector="activeBusiness?.sector || ''" />
           </template>
           <template v-else>
-            <h2>Business profile</h2>
-            <p class="intro">
-              These details help the chatbot give accurate answers.
-            </p>
-            <form @submit.prevent="showSavedMessage('Business profile saved')">
-              <label class="field">
-                Business name
-                <input v-model="businessProfile.name" required />
-              </label>
-              <label class="field">
-                Sector
-                <input v-model="businessProfile.sector" />
-              </label>
-              <label class="field">
-                City
-                <input v-model="businessProfile.city" />
-              </label>
-              <label class="field">
-                Business email
-                <input v-model="businessProfile.email" type="email" />
-              </label>
-              <label class="field">
-                Phone
-                <input v-model="businessProfile.phone" />
-              </label>
-              <label class="field">
-                Business ID
-                <div class="readonly">
-                  <span class="mono">{{ businessProfile.id }}</span>
-                  <Copy :size="15" />
-                </div>
-              </label>
-              <label class="field wide">
-                Business description
-                <textarea rows="4">
-Premium salon services in the heart of Colombo, open Monday to Saturday.</textarea>
-              </label>
-              <AppButton class="wide">Save profile</AppButton>
-            </form>
+            <BusinessProfileSettings />
           </template>
         </section>
       </div>
@@ -373,24 +230,6 @@ Premium salon services in the heart of Colombo, open Monday to Saturday.</textar
   color: var(--success);
   font-weight: 600;
 }
-.status {
-  display: flex;
-  gap: 11px;
-  align-items: center;
-  background: var(--success-bg);
-  color: var(--success);
-  padding: 15px;
-  border-radius: 12px;
-  margin-bottom: 24px;
-}
-.status div {
-  display: flex;
-  flex-direction: column;
-}
-.status small {
-  font-size: 10.5px;
-  margin-top: 3px;
-}
 .content h3 {
   font-size: 13.5px;
 }
@@ -402,35 +241,6 @@ Premium salon services in the heart of Colombo, open Monday to Saturday.</textar
 .content > .field {
   margin: 17px 0;
   max-width: 520px;
-}
-.security {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  color: var(--muted);
-  font-size: 10.5px;
-  margin: -8px 0 17px;
-}
-.qr {
-  display: flex;
-  align-items: center;
-  gap: 28px;
-  margin: 20px 0;
-}
-.qr > div {
-  width: 160px;
-  height: 160px;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  font: 800 20px 'JetBrains Mono';
-  background: repeating-linear-gradient(45deg, #1c2033 0 5px, #fff 5px 10px);
-  color: var(--primary);
-  border: 12px solid #fff;
-  outline: 1px solid var(--border);
-}
-.qr ol {
-  flex: 1;
 }
 .toggle-row {
   display: flex;
@@ -503,10 +313,6 @@ Premium salon services in the heart of Colombo, open Monday to Saturday.</textar
   }
   .wide {
     grid-column: auto;
-  }
-  .qr {
-    align-items: flex-start;
-    flex-direction: column;
   }
 }
 </style>

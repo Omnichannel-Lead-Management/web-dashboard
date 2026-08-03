@@ -18,7 +18,13 @@ const routes = [
     component: () => import('../views/RegisterView.vue'),
     meta: { guest: true },
   },
+  {
+    path: '/web-chat',
+    component: () => import('../views/WebChatView.vue'),
+    meta: { guest: true, publicChat: true },
+  },
   { path: '/inbox', component: () => import('../views/InboxView.vue') },
+  { path: '/escalations', component: () => import('../views/EscalationsView.vue') },
   { path: '/leads', component: () => import('../views/LeadsView.vue') },
   {
     path: '/leads/:id',
@@ -33,6 +39,14 @@ const routes = [
     component: () => import('../views/NewAppointmentView.vue'),
   },
   { path: '/analytics', component: () => import('../views/AnalyticsView.vue') },
+  {
+    path: '/notifications',
+    component: () => import('../views/NotificationsView.vue'),
+  },
+  {
+    path: '/onboarding',
+    component: () => import('../views/OnboardingView.vue'),
+  },
   { path: '/settings', component: () => import('../views/SettingsView.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]

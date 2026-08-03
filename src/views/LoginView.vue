@@ -7,8 +7,8 @@ const router = useRouter()
 const store = useAppStore()
 const validationError = ref('')
 const loginForm = reactive({
-  email: 'owner@elegantsalon.lk',
-  password: 'password',
+  email: '',
+  password: '',
 })
 
 async function submitLogin() {
@@ -45,7 +45,7 @@ async function submitLogin() {
           <strong>Loop</strong>
         </RouterLink>
         <h1>Welcome back</h1>
-        <p>Sign in to your Elegant Salon workspace.</p>
+        <p>Sign in to your business workspace.</p>
         <form @submit.prevent="submitLogin">
           <label class="field">
             Email
