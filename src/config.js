@@ -16,6 +16,10 @@ export const webChatEnabled = explicitTrue(
   import.meta.env.VITE_WEB_CHAT_ENABLED,
 )
 
+export const notificationCenterEnabled = explicitTrue(
+  import.meta.env.VITE_NOTIFICATION_CENTER_ENABLED,
+)
+
 export function gatewayWsUrl(path = '/ws/agents', baseUrl = GATEWAY_URL) {
   const url = new URL(baseUrl)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'

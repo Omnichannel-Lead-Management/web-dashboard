@@ -230,4 +230,29 @@ export const gatewayApi = {
       body: JSON.stringify({ businessId, status }),
     })
   },
+
+  // Prepared frontend contract. The gateway does not expose these routes yet.
+  listNotifications(businessId, { unread, type } = {}) {
+    const params = new URLSearchParams()
+    if (unread !== undefined) params.set('unread', String(Boolean(unread)))
+    if (type) params.set('type', type)
+    const query = params.size ? `?${params}` : ''
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/notifications${query}`,
+    )
+  },
+
+  markNotificationRead(businessId, notificationId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/notifications/${encodeURIComponent(notificationId)}/read`,
+      { method: 'PATCH' },
+    )
+  },
+
+  markAllNotificationsRead(businessId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/notifications/read-all`,
+      { method: 'POST' },
+    )
+  },
 }

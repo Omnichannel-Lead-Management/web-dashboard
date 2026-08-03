@@ -7,6 +7,7 @@ import {
   Building2,
   MessageSquareText,
   Globe2,
+  Bell,
 } from 'lucide-vue-next'
 
 defineProps({
@@ -23,6 +24,7 @@ const items = [
   ['telegram', 'Telegram', TentTree],
   ['whatsapp', 'WhatsApp', MessageCircleMore],
   ['webchat', 'Web chat', Globe2],
+  ['notifications', 'Notification Centre', Bell],
   ['chatbot', 'Chatbot settings', Bot],
   ['faqs', 'FAQs & answers', MessageSquareText],
   ['profile', 'Business profile', Building2],

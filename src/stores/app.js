@@ -1,9 +1,15 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { gatewayApi } from '../services/gatewayApi'
 import { appointmentService } from '../services/appointmentService'
 import { leadService } from '../services/leadService'
 import { createAgentSocket } from '../services/agentSocket'
+import { notificationCenterEnabled } from '../config'
+import {
+  getUnreadNotificationCount,
+  mapNotification,
+  mapNotificationsResponse,
+} from '../services/notifications'
 import {
   createOnboardingProgress,
   loadOnboardingProgress as readOnboardingProgress,
@@ -134,6 +140,24 @@ export const useAppStore = defineStore('app', () => {
   const business = ref(null)
   const businessProfileSaving = ref(false)
   const businessProfileError = ref('')
+  const notificationCenterAvailable = ref(notificationCenterEnabled)
+  const notifications = ref([])
+  const notificationsLoading = ref(false)
+  const notificationsError = ref('')
+  const notificationsLoadedForBusinessId = ref('')
+  const notificationMutationIds = ref([])
+  const notificationsLastUpdatedAt = ref(0)
+  const notificationUnreadCount = computed(() =>
+    notificationCenterAvailable.value &&
+    notificationsLoadedForBusinessId.value === businessId.value
+      ? getUnreadNotificationCount(notifications.value)
+      : 0,
+  )
+  let notificationSessionVersion = 0
+  let notificationRequestId = 0
+  let notificationRefreshPromise = null
+  let notificationActiveRefreshId = 0
+  const notificationMutationPromises = new Map()
   const agentId = ref(localStorage.getItem(STORAGE.agentId) || 'agent_demo')
   const agentName = ref(localStorage.getItem(STORAGE.agentName) || 'Agent')
   const loadingInbox = ref(false)
@@ -631,6 +655,7 @@ export const useAppStore = defineStore('app', () => {
     business.value = null
     businessProfileSaving.value = false
     businessProfileError.value = ''
+    clearNotificationState()
     faqs.value = []
     faqError.value = ''
     loadingFaqs.value = false
@@ -1677,12 +1702,241 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  function clearNotificationState() {
+    notificationSessionVersion += 1
+    notificationRequestId += 1
+    notificationRefreshPromise = null
+    notificationActiveRefreshId = 0
+    notificationMutationPromises.clear()
+    notifications.value = []
+    notificationsLoading.value = false
+    notificationsError.value = ''
+    notificationsLoadedForBusinessId.value = ''
+    notificationMutationIds.value = []
+    notificationsLastUpdatedAt.value = 0
+  }
+
+  function notificationRequestIsCurrent(sessionVersion, requestBusinessId) {
+    return (
+      sessionVersion === notificationSessionVersion &&
+      authenticated.value &&
+      businessId.value === requestBusinessId
+    )
+  }
+
+  function invalidateNotificationRefresh(refreshId) {
+    if (!refreshId || notificationActiveRefreshId !== refreshId) return
+    notificationRequestId += 1
+    notificationActiveRefreshId = 0
+    notificationRefreshPromise = null
+    notificationsLoading.value = false
+  }
+
+  function refreshNotifications() {
+    if (
+      !notificationCenterAvailable.value ||
+      !authenticated.value ||
+      !businessId.value
+    )
+      return Promise.resolve(null)
+    if (notificationRefreshPromise) return notificationRefreshPromise
+
+    const sessionVersion = notificationSessionVersion
+    const requestBusinessId = businessId.value
+    const requestId = ++notificationRequestId
+    notificationActiveRefreshId = requestId
+    notificationsLoading.value = true
+    notificationsError.value = ''
+
+    const request = gatewayApi
+      .listNotifications(requestBusinessId)
+      .then((result) => {
+        if (
+          requestId !== notificationRequestId ||
+          !notificationRequestIsCurrent(sessionVersion, requestBusinessId)
+        )
+          return null
+        if (
+          !Array.isArray(result) &&
+          !Array.isArray(result?.notifications) &&
+          !Array.isArray(result?.data)
+        )
+          throw new Error('Gateway returned an invalid notifications response')
+        const mapped = mapNotificationsResponse(result)
+          .filter(
+            (notification) =>
+              !notification.businessId ||
+              notification.businessId === requestBusinessId,
+          )
+          .map((notification) => ({
+            ...notification,
+            businessId: notification.businessId || requestBusinessId,
+          }))
+        notifications.value = mapped
+        notificationsLoadedForBusinessId.value = requestBusinessId
+        notificationsLastUpdatedAt.value = Date.now()
+        return mapped
+      })
+      .catch((error) => {
+        if (
+          requestId === notificationRequestId &&
+          notificationRequestIsCurrent(sessionVersion, requestBusinessId)
+        )
+          notificationsError.value =
+            error.message || 'Notifications could not be loaded'
+        return null
+      })
+      .finally(() => {
+        if (
+          requestId === notificationRequestId &&
+          notificationRequestIsCurrent(sessionVersion, requestBusinessId)
+        )
+          notificationsLoading.value = false
+        if (notificationRefreshPromise === request)
+          notificationRefreshPromise = null
+        if (notificationActiveRefreshId === requestId)
+          notificationActiveRefreshId = 0
+      })
+    notificationRefreshPromise = request
+    return request
+  }
+
+  function markNotificationRead(notificationId) {
+    if (
+      !notificationCenterAvailable.value ||
+      !authenticated.value ||
+      !businessId.value
+    )
+      return Promise.resolve(null)
+    const existing = notifications.value.find(
+      (notification) => notification.id === notificationId,
+    )
+    if (
+      !existing ||
+      existing.isRead ||
+      (existing.businessId && existing.businessId !== businessId.value)
+    )
+      return Promise.resolve(existing || null)
+    if (notificationMutationPromises.has(notificationId))
+      return notificationMutationPromises.get(notificationId)
+
+    const sessionVersion = notificationSessionVersion
+    const requestBusinessId = businessId.value
+    const refreshIdAtMutationStart = notificationActiveRefreshId
+    notificationMutationIds.value = [
+      ...notificationMutationIds.value,
+      notificationId,
+    ]
+    const request = gatewayApi
+      .markNotificationRead(requestBusinessId, notificationId)
+      .then((result) => {
+        if (result?.success !== true)
+          throw new Error('Gateway returned an invalid notification response')
+        const returned = result.notification
+          ? mapNotification(result.notification)
+          : null
+        if (
+          result.notification &&
+          (!returned ||
+            returned.id !== notificationId ||
+            (returned.businessId &&
+              returned.businessId !== requestBusinessId) ||
+            returned.isRead !== true)
+        )
+          throw new Error('Gateway returned a mismatched notification response')
+        if (!notificationRequestIsCurrent(sessionVersion, requestBusinessId))
+          return returned
+        invalidateNotificationRefresh(refreshIdAtMutationStart)
+        notifications.value = notifications.value.map((notification) =>
+          notification.id === notificationId
+            ? {
+                ...notification,
+                ...(returned || {}),
+                businessId: requestBusinessId,
+                isRead: true,
+              }
+            : notification,
+        )
+        return notifications.value.find(
+          (notification) => notification.id === notificationId,
+        )
+      })
+      .catch((error) => {
+        if (notificationRequestIsCurrent(sessionVersion, requestBusinessId))
+          notificationsError.value =
+            error.message || 'Notification could not be marked as read'
+        throw error
+      })
+      .finally(() => {
+        if (notificationMutationPromises.get(notificationId) === request)
+          notificationMutationPromises.delete(notificationId)
+        if (notificationRequestIsCurrent(sessionVersion, requestBusinessId))
+          notificationMutationIds.value = notificationMutationIds.value.filter(
+            (id) => id !== notificationId,
+          )
+      })
+    notificationMutationPromises.set(notificationId, request)
+    return request
+  }
+
+  function markAllNotificationsRead() {
+    const mutationKey = '__all__'
+    if (
+      !notificationCenterAvailable.value ||
+      !authenticated.value ||
+      !businessId.value ||
+      notificationUnreadCount.value === 0
+    )
+      return Promise.resolve(null)
+    if (notificationMutationPromises.has(mutationKey))
+      return notificationMutationPromises.get(mutationKey)
+
+    const sessionVersion = notificationSessionVersion
+    const requestBusinessId = businessId.value
+    const refreshIdAtMutationStart = notificationActiveRefreshId
+    notificationMutationIds.value = [
+      ...notificationMutationIds.value,
+      mutationKey,
+    ]
+    const request = gatewayApi
+      .markAllNotificationsRead(requestBusinessId)
+      .then((result) => {
+        if (result?.success !== true)
+          throw new Error('Gateway returned an invalid notification response')
+        if (!notificationRequestIsCurrent(sessionVersion, requestBusinessId))
+          return null
+        invalidateNotificationRefresh(refreshIdAtMutationStart)
+        notifications.value = notifications.value.map((notification) => ({
+          ...notification,
+          isRead: true,
+        }))
+        return notifications.value
+      })
+      .catch((error) => {
+        if (notificationRequestIsCurrent(sessionVersion, requestBusinessId))
+          notificationsError.value =
+            error.message || 'Notifications could not be marked as read'
+        throw error
+      })
+      .finally(() => {
+        if (notificationMutationPromises.get(mutationKey) === request)
+          notificationMutationPromises.delete(mutationKey)
+        if (notificationRequestIsCurrent(sessionVersion, requestBusinessId))
+          notificationMutationIds.value = notificationMutationIds.value.filter(
+            (id) => id !== mutationKey,
+          )
+      })
+    notificationMutationPromises.set(mutationKey, request)
+    return request
+  }
+
   watch(
     businessId,
     () => {
       businessSessionVersion += 1
       businessProfileSaving.value = false
       businessProfileError.value = ''
+      clearNotificationState()
       loadOnboardingProgress()
     },
     { immediate: true, flush: 'sync' },
@@ -1736,6 +1990,14 @@ export const useAppStore = defineStore('app', () => {
     faqError,
     onboardingProgress,
     onboardingLoaded,
+    notificationCenterAvailable,
+    notifications,
+    notificationsLoading,
+    notificationsError,
+    notificationsLoadedForBusinessId,
+    notificationMutationIds,
+    notificationsLastUpdatedAt,
+    notificationUnreadCount,
     notify,
     login,
     registerBusiness,
@@ -1778,6 +2040,10 @@ export const useAppStore = defineStore('app', () => {
     skipOnboardingStep,
     finishOnboardingLocally,
     resetOnboardingProgress,
+    refreshNotifications,
+    markNotificationRead,
+    markAllNotificationsRead,
+    clearNotificationState,
     connectAgentChannel,
   }
 })

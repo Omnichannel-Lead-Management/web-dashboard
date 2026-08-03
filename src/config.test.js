@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   businessProfileUpdateEnabled,
   explicitTrue,
+  notificationCenterEnabled,
   webChatEnabled,
 } from './config.js'
 
@@ -23,6 +24,23 @@ describe('business profile update capability', () => {
     ).text()
     expect(example).toContain('VITE_BUSINESS_PROFILE_UPDATE_ENABLED=false')
     expect(example).toContain('PATCH /api/businesses/:businessId')
+  })
+})
+
+describe('notification centre capability', () => {
+  test('missing flag defaults disabled and only exact true enables', () => {
+    expect(notificationCenterEnabled).toBe(false)
+    expect(explicitTrue(undefined)).toBe(false)
+    expect(explicitTrue('false')).toBe(false)
+    expect(explicitTrue('TRUE')).toBe(false)
+    expect(explicitTrue('true')).toBe(true)
+  })
+
+  test('example environment documents the disabled default', async () => {
+    const example = await Bun.file(
+      new URL('../.env.example', import.meta.url),
+    ).text()
+    expect(example).toContain('VITE_NOTIFICATION_CENTER_ENABLED=false')
   })
 })
 

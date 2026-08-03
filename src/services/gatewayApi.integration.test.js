@@ -6,6 +6,53 @@ import { describe, expect, test } from 'bun:test'
  * against a local mock fetch.
  */
 describe('gatewayApi integration (mock fetch)', () => {
+  test('notification methods use encoded business-scoped prepared contracts', async () => {
+    const calls = []
+    globalThis.fetch = async (url, options = {}) => {
+      calls.push({ url: String(url), options })
+      return Response.json({ success: true, notifications: [] })
+    }
+    const { gatewayApi } = await import(
+      `./gatewayApi.js?t=notifications-${Date.now()}`
+    )
+    await gatewayApi.listNotifications('biz/a & b', {
+      unread: true,
+      type: 'lead',
+    })
+    await gatewayApi.markNotificationRead('biz/a & b', 'notice/1')
+    await gatewayApi.markAllNotificationsRead('biz/a & b')
+
+    expect(new URL(calls[0].url).pathname).toBe(
+      '/api/businesses/biz%2Fa%20%26%20b/notifications',
+    )
+    expect(new URL(calls[0].url).searchParams.get('unread')).toBe('true')
+    expect(new URL(calls[0].url).searchParams.get('type')).toBe('lead')
+    expect(new URL(calls[1].url).pathname).toBe(
+      '/api/businesses/biz%2Fa%20%26%20b/notifications/notice%2F1/read',
+    )
+    expect(calls[1].options.method).toBe('PATCH')
+    expect(new URL(calls[2].url).pathname).toBe(
+      '/api/businesses/biz%2Fa%20%26%20b/notifications/read-all',
+    )
+    expect(calls[2].options.method).toBe('POST')
+  })
+
+  test('notification errors preserve message, status and body', async () => {
+    const body = { error: 'Notification gateway unavailable' }
+    globalThis.fetch = async () => Response.json(body, { status: 503 })
+    const { gatewayApi } = await import(
+      `./gatewayApi.js?t=notification-error-${Date.now()}`
+    )
+    try {
+      await gatewayApi.listNotifications('biz_1')
+      throw new Error('Expected notification request to fail')
+    } catch (error) {
+      expect(error.message).toBe(body.error)
+      expect(error.status).toBe(503)
+      expect(error.body).toEqual(body)
+    }
+  })
+
   test('business update uses an encoded PATCH with only the supplied fields', async () => {
     const calls = []
     globalThis.fetch = async (url, options = {}) => {

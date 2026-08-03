@@ -39,6 +39,10 @@ const routes = [
   },
   { path: '/analytics', component: () => import('../views/AnalyticsView.vue') },
   {
+    path: '/notifications',
+    component: () => import('../views/NotificationsView.vue'),
+  },
+  {
     path: '/onboarding',
     component: () => import('../views/OnboardingView.vue'),
   },
