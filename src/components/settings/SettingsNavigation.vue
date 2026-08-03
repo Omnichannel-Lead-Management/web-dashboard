@@ -10,6 +10,7 @@ import {
   Bell,
   Image,
   Users,
+  ChartNoAxesCombined,
 } from 'lucide-vue-next'
 
 defineProps({
@@ -29,6 +30,7 @@ const items = [
   ['notifications', 'Notification Centre', Bell],
   ['images', 'Image attachments', Image],
   ['escalations', 'Escalation queue', Users],
+  ['analytics', 'Analytics', ChartNoAxesCombined],
   ['chatbot', 'Chatbot settings', Bot],
   ['faqs', 'FAQs & answers', MessageSquareText],
   ['profile', 'Business profile', Building2],

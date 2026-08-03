@@ -28,6 +28,10 @@ export const agentEscalationQueueEnabled = explicitTrue(
   import.meta.env.VITE_AGENT_ESCALATION_QUEUE_ENABLED,
 )
 
+export const analyticsEnabled = explicitTrue(
+  import.meta.env.VITE_ANALYTICS_ENABLED,
+)
+
 export function gatewayWsUrl(path = '/ws/agents', baseUrl = GATEWAY_URL) {
   const url = new URL(baseUrl)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'

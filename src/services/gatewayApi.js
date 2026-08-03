@@ -40,6 +40,17 @@ export const gatewayApi = {
     return request(`/api/businesses/${encodeURIComponent(id)}`)
   },
 
+  getBusinessAnalytics(businessId, { from, to, timezone } = {}) {
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    if (timezone) params.set('timezone', timezone)
+    const query = params.toString()
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/analytics${query ? `?${query}` : ''}`,
+    )
+  },
+
   updateBusiness(id, changes) {
     return request(`/api/businesses/${encodeURIComponent(id)}`, {
       method: 'PATCH',

@@ -409,6 +409,7 @@ export function mapConversation(summary) {
 
   return {
     id,
+    businessId: summary.business_id ?? summary.businessId ?? '',
     messenger_id: summary.messenger_id,
     platform: summary.platform,
     name: summary.display_name || summary.messenger_id,
@@ -653,6 +654,7 @@ export function mapAppointment(appointment) {
 
   return {
     id: appointment.id,
+    businessId: appointment.businessId ?? appointment.business_id ?? '',
     startTime: startTime || null,
     endTime: endTime || null,
     date: valid ? start.toISOString().slice(0, 10) : '',

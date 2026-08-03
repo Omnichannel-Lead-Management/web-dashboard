@@ -4,7 +4,16 @@ import { gatewayApi } from '../services/gatewayApi'
 import { appointmentService } from '../services/appointmentService'
 import { leadService } from '../services/leadService'
 import { createAgentSocket } from '../services/agentSocket'
-import { agentEscalationQueueEnabled, notificationCenterEnabled } from '../config'
+import {
+  agentEscalationQueueEnabled,
+  analyticsEnabled,
+  notificationCenterEnabled,
+} from '../config'
+import { mapAnalyticsResponse } from '../services/analytics'
+import {
+  analyticsRangeKey as createAnalyticsRangeKey,
+  isValidAnalyticsDateRange,
+} from '../services/analyticsDateRange'
 import {
   getEscalationOwnership,
   mapEscalation,
@@ -179,6 +188,18 @@ export const useAppStore = defineStore('app', () => {
   let escalationQueueRevision = 0
   let agentSocketGeneration = 0
   const escalationMutations = new Map()
+  const analyticsAvailable = ref(analyticsEnabled)
+  const analytics = ref(null)
+  const analyticsLoading = ref(false)
+  const analyticsRefreshing = ref(false)
+  const analyticsError = ref('')
+  const analyticsLoadedForBusinessId = ref('')
+  const analyticsRangeKey = ref('')
+  const analyticsLastUpdatedAt = ref(0)
+  let analyticsSessionVersion = 0
+  let analyticsRequestId = 0
+  let analyticsRequest = null
+  let analyticsRequestKey = ''
   const agentId = ref(localStorage.getItem(STORAGE.agentId) || '')
   const agentName = ref(localStorage.getItem(STORAGE.agentName) || 'Agent')
   const loadingInbox = ref(false)
@@ -194,8 +215,98 @@ export const useAppStore = defineStore('app', () => {
     }, 3200)
   }
 
+  function clearAnalyticsState() {
+    analyticsSessionVersion += 1
+    analyticsRequestId += 1
+    analyticsRequest = null
+    analyticsRequestKey = ''
+    analytics.value = null
+    analyticsLoading.value = false
+    analyticsRefreshing.value = false
+    analyticsError.value = ''
+    analyticsLoadedForBusinessId.value = ''
+    analyticsRangeKey.value = ''
+    analyticsLastUpdatedAt.value = 0
+  }
+
+  function refreshAnalytics(range) {
+    if (
+      !analyticsAvailable.value ||
+      !authenticated.value ||
+      !businessId.value ||
+      !isValidAnalyticsDateRange(range)
+    )
+      return Promise.resolve(null)
+    const requestBusinessId = businessId.value
+    const rangeKey = createAnalyticsRangeKey(range)
+    const operationKey = `${requestBusinessId}|${rangeKey}`
+    if (analyticsRequest && analyticsRequestKey === operationKey)
+      return analyticsRequest
+    const session = analyticsSessionVersion
+    const requestId = ++analyticsRequestId
+    const sameRange =
+      analyticsLoadedForBusinessId.value === requestBusinessId &&
+      analyticsRangeKey.value === rangeKey
+    if (!sameRange) analytics.value = null
+    analyticsLoading.value = !sameRange
+    analyticsRefreshing.value = sameRange
+    analyticsError.value = ''
+    analyticsRequestKey = operationKey
+    const request = gatewayApi
+      .getBusinessAnalytics(requestBusinessId, range)
+      .then((response) => {
+        const mapped = mapAnalyticsResponse(response)
+        if (!mapped) throw new Error('Gateway returned invalid analytics data')
+        if (
+          !analyticsAvailable.value ||
+          !authenticated.value ||
+          session !== analyticsSessionVersion ||
+          requestId !== analyticsRequestId ||
+          requestBusinessId !== businessId.value
+        )
+          return null
+        analytics.value = mapped
+        analyticsLoadedForBusinessId.value = requestBusinessId
+        analyticsRangeKey.value = rangeKey
+        analyticsLastUpdatedAt.value = Date.now()
+        return mapped
+      })
+      .catch((error) => {
+        if (
+          analyticsAvailable.value &&
+          authenticated.value &&
+          session === analyticsSessionVersion &&
+          requestId === analyticsRequestId &&
+          requestBusinessId === businessId.value
+        )
+          analyticsError.value =
+            error.message || 'Analytics could not be loaded'
+        throw error
+      })
+      .finally(() => {
+        if (analyticsRequest === request) {
+          analyticsRequest = null
+          analyticsRequestKey = ''
+        }
+        if (
+          session === analyticsSessionVersion &&
+          requestId === analyticsRequestId &&
+          requestBusinessId === businessId.value
+        ) {
+          analyticsLoading.value = false
+          analyticsRefreshing.value = false
+        }
+      })
+    analyticsRequest = request
+    return request
+  }
+
   function escalationRequestIsCurrent(version, requestBusinessId) {
-    return authenticated.value && version === escalationSessionVersion && requestBusinessId === businessId.value
+    return (
+      authenticated.value &&
+      version === escalationSessionVersion &&
+      requestBusinessId === businessId.value
+    )
   }
 
   function cancelPendingEscalationMutations(reason = 'session_reset') {
@@ -240,9 +351,18 @@ export const useAppStore = defineStore('app', () => {
     requestBusinessId = businessId.value,
     { realtime = false } = {},
   ) {
-    if (!escalationQueueAvailable.value || requestBusinessId !== businessId.value) return false
-    const mapped = mapEscalationQueue(payload).filter((item) => !item.businessId || item.businessId === requestBusinessId)
-    const next = mapped.map((item) => ({ ...item, businessId: requestBusinessId }))
+    if (
+      !escalationQueueAvailable.value ||
+      requestBusinessId !== businessId.value
+    )
+      return false
+    const mapped = mapEscalationQueue(payload).filter(
+      (item) => !item.businessId || item.businessId === requestBusinessId,
+    )
+    const next = mapped.map((item) => ({
+      ...item,
+      businessId: requestBusinessId,
+    }))
     const changed = !escalationQueuesMatch(escalations.value, next)
     if (changed) {
       escalations.value = next
@@ -256,11 +376,18 @@ export const useAppStore = defineStore('app', () => {
 
   function upsertEscalation(source, { realtime = false } = {}) {
     const mapped = mapEscalation(source)
-    if (!mapped || (mapped.businessId && mapped.businessId !== businessId.value)) return null
+    if (
+      !mapped ||
+      (mapped.businessId && mapped.businessId !== businessId.value)
+    )
+      return null
     const next = { ...mapped, businessId: businessId.value }
     const existing = escalations.value.find((item) => item.id === next.id)
     if (existing && escalationQueuesMatch(existing, next)) return existing
-    escalations.value = [...escalations.value.filter((item) => item.id !== next.id), next]
+    escalations.value = [
+      ...escalations.value.filter((item) => item.id !== next.id),
+      next,
+    ]
     if (realtime) escalationQueueRevision += 1
     escalationsLastUpdatedAt.value = Date.now()
     return next
@@ -277,9 +404,12 @@ export const useAppStore = defineStore('app', () => {
   function applyConfirmedEscalationRelease(id, releasedAt) {
     const existing = escalations.value.find((item) => item.id === id)
     const conversation = conversations.value.find((item) => item.id === id)
-    const alreadyQueued = existing?.status === 'queued' && !existing.claimedByAgentId
+    const alreadyQueued =
+      existing?.status === 'queued' && !existing.claimedByAgentId
     const confirmedReleaseTime =
-      (alreadyQueued && existing.releasedAt) || releasedAt || new Date().toISOString()
+      (alreadyQueued && existing.releasedAt) ||
+      releasedAt ||
+      new Date().toISOString()
 
     if (existing) {
       upsertEscalation(
@@ -337,16 +467,27 @@ export const useAppStore = defineStore('app', () => {
     )
   }
 
-  function settleEscalationMutation(type, id, { value = null, error = '' } = {}) {
+  function settleEscalationMutation(
+    type,
+    id,
+    { value = null, error = '' } = {},
+  ) {
     const key = `${type}:${id}`
     const mutation = escalationMutations.get(key)
-    if (!mutation || !escalationRequestIsCurrent(mutation.version, mutation.businessId)) return false
+    if (
+      !mutation ||
+      !escalationRequestIsCurrent(mutation.version, mutation.businessId)
+    )
+      return false
     clearTimeout(mutation.timer)
     escalationMutations.delete(key)
     if (type === 'claim') {
-      escalationClaimPendingIds.value = escalationClaimPendingIds.value.filter((item) => item !== id)
+      escalationClaimPendingIds.value = escalationClaimPendingIds.value.filter(
+        (item) => item !== id,
+      )
     } else {
-      escalationReleasePendingIds.value = escalationReleasePendingIds.value.filter((item) => item !== id)
+      escalationReleasePendingIds.value =
+        escalationReleasePendingIds.value.filter((item) => item !== id)
     }
     if (error) {
       escalationsError.value = error
@@ -360,7 +501,12 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function refreshEscalations() {
-    if (!escalationQueueAvailable.value || !authenticated.value || !businessId.value) return Promise.resolve(null)
+    if (
+      !escalationQueueAvailable.value ||
+      !authenticated.value ||
+      !businessId.value
+    )
+      return Promise.resolve(null)
     if (escalationRefreshPromise) return escalationRefreshPromise
     const version = escalationSessionVersion
     const requestBusinessId = businessId.value
@@ -371,15 +517,18 @@ export const useAppStore = defineStore('app', () => {
     escalationsLoading.value = !hasData
     escalationsRefreshing.value = hasData
     escalationsError.value = ''
-    const request = gatewayApi.getAgentQueue(requestBusinessId)
+    const request = gatewayApi
+      .getAgentQueue(requestBusinessId)
       .then((result) => {
-        if (result?.success !== true || !Array.isArray(result.queue)) throw new Error('Gateway returned an invalid escalation queue')
+        if (result?.success !== true || !Array.isArray(result.queue))
+          throw new Error('Gateway returned an invalid escalation queue')
         if (
           !escalationRequestIsCurrent(version, requestBusinessId) ||
           requestId !== escalationRefreshId ||
           mutationAtStart !== escalationMutationVersion ||
           revisionAtStart !== escalationQueueRevision
-        ) return null
+        )
+          return null
         applyEscalationSnapshot(result.queue, requestBusinessId)
         return escalations.value
       })
@@ -388,12 +537,18 @@ export const useAppStore = defineStore('app', () => {
           escalationRequestIsCurrent(version, requestBusinessId) &&
           requestId === escalationRefreshId &&
           revisionAtStart === escalationQueueRevision
-        ) escalationsError.value = error.message || 'Escalation queue could not be loaded'
+        )
+          escalationsError.value =
+            error.message || 'Escalation queue could not be loaded'
         throw error
       })
       .finally(() => {
-        if (escalationRefreshPromise === request) escalationRefreshPromise = null
-        if (escalationRequestIsCurrent(version, requestBusinessId) && requestId === escalationRefreshId) {
+        if (escalationRefreshPromise === request)
+          escalationRefreshPromise = null
+        if (
+          escalationRequestIsCurrent(version, requestBusinessId) &&
+          requestId === escalationRefreshId
+        ) {
           escalationsLoading.value = false
           escalationsRefreshing.value = false
         }
@@ -594,7 +749,8 @@ export const useAppStore = defineStore('app', () => {
     if (
       escalationEventTypes.has(event.type) &&
       (!escalationQueueAvailable.value || !authenticated.value)
-    ) return
+    )
+      return
 
     if (event.type === 'connected') {
       connectionStatus.value = 'connected'
@@ -626,9 +782,13 @@ export const useAppStore = defineStore('app', () => {
     }
 
     if (event.type === 'queue_snapshot' && Array.isArray(event.chats)) {
-      const currentBusinessChats = event.chats.filter(isCurrentEscalationBusiness)
+      const currentBusinessChats = event.chats.filter(
+        isCurrentEscalationBusiness,
+      )
       if (event.chats.length && !currentBusinessChats.length) return
-      applyEscalationSnapshot(currentBusinessChats, businessId.value, { realtime: true })
+      applyEscalationSnapshot(currentBusinessChats, businessId.value, {
+        realtime: true,
+      })
       for (const chat of currentBusinessChats) {
         upsertConversation({
           messenger_id: chat.messenger_id,
@@ -688,7 +848,16 @@ export const useAppStore = defineStore('app', () => {
         conversation.unread = false
       }
       const existing = escalations.value.find((item) => item.id === id)
-      if (existing) upsertEscalation({ ...existing, business_id: businessId.value, escalation_status: 'claimed', claimed_by_agent_id: event.claimed_by_agent_id }, { realtime: true })
+      if (existing)
+        upsertEscalation(
+          {
+            ...existing,
+            business_id: businessId.value,
+            escalation_status: 'claimed',
+            claimed_by_agent_id: event.claimed_by_agent_id,
+          },
+          { realtime: true },
+        )
       if (event.claimed_by_agent_id === agentId.value) {
         settleEscalationMutation('claim', id, {
           value: escalations.value.find((item) => item.id === id) || null,
@@ -774,7 +943,11 @@ export const useAppStore = defineStore('app', () => {
     if (event.type === 'claim_result') {
       const mutationKey = conversationId(event.platform, event.messenger_id)
       const mutation = escalationMutations.get(`claim:${mutationKey}`)
-      if (!mutation || !escalationRequestIsCurrent(mutation.version, mutation.businessId)) return
+      if (
+        !mutation ||
+        !escalationRequestIsCurrent(mutation.version, mutation.businessId)
+      )
+        return
       if (!event.success) {
         const error = event.error || 'Could not claim conversation'
         settleEscalationMutation('claim', mutationKey, { error })
@@ -789,7 +962,17 @@ export const useAppStore = defineStore('app', () => {
         conversation.unread = false
       }
       const existing = escalations.value.find((item) => item.id === id)
-      if (existing) upsertEscalation({ ...existing, business_id: mutation.businessId, escalation_status: 'claimed', claimed_by_agent_id: agentId.value, claimed_at: new Date().toISOString() }, { realtime: true })
+      if (existing)
+        upsertEscalation(
+          {
+            ...existing,
+            business_id: mutation.businessId,
+            escalation_status: 'claimed',
+            claimed_by_agent_id: agentId.value,
+            claimed_at: new Date().toISOString(),
+          },
+          { realtime: true },
+        )
       settleEscalationMutation('claim', mutationKey, {
         value: escalations.value.find((item) => item.id === id) || null,
       })
@@ -803,7 +986,11 @@ export const useAppStore = defineStore('app', () => {
     if (event.type === 'release_result') {
       const mutationKey = conversationId(event.platform, event.messenger_id)
       const mutation = escalationMutations.get(`release:${mutationKey}`)
-      if (!mutation || !escalationRequestIsCurrent(mutation.version, mutation.businessId)) return
+      if (
+        !mutation ||
+        !escalationRequestIsCurrent(mutation.version, mutation.businessId)
+      )
+        return
       if (!event.success) {
         const error = event.error || 'Could not release conversation'
         settleEscalationMutation('release', mutationKey, { error })
@@ -852,18 +1039,22 @@ export const useAppStore = defineStore('app', () => {
         if (generation === agentSocketGeneration) handleSocketEvent(event)
       },
       onOpen: () => {
-        if (generation === agentSocketGeneration) connectionStatus.value = 'connected'
+        if (generation === agentSocketGeneration)
+          connectionStatus.value = 'connected'
       },
       onClose: () => {
-        if (generation === agentSocketGeneration) connectionStatus.value = 'offline'
+        if (generation === agentSocketGeneration)
+          connectionStatus.value = 'offline'
       },
       onError: () => {
-        if (generation === agentSocketGeneration) connectionStatus.value = 'error'
+        if (generation === agentSocketGeneration)
+          connectionStatus.value = 'error'
       },
       onStateChange: (state) => {
         if (generation !== agentSocketGeneration) return
         if (state === 'connected') connectionStatus.value = 'online'
-        else if (state === 'offline' || state === 'closed') connectionStatus.value = 'offline'
+        else if (state === 'offline' || state === 'closed')
+          connectionStatus.value = 'offline'
         else connectionStatus.value = state
       },
     })
@@ -983,6 +1174,7 @@ export const useAppStore = defineStore('app', () => {
     businessProfileError.value = ''
     clearNotificationState()
     clearEscalationState('logout')
+    clearAnalyticsState()
     faqs.value = []
     faqError.value = ''
     loadingFaqs.value = false
@@ -1008,26 +1200,51 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function claimEscalation(id) {
-    if (!escalationQueueAvailable.value || !authenticated.value || !businessId.value || !agentId.value || connectionStatus.value !== 'online') return Promise.resolve(null)
+    if (
+      !escalationQueueAvailable.value ||
+      !authenticated.value ||
+      !businessId.value ||
+      !agentId.value ||
+      connectionStatus.value !== 'online'
+    )
+      return Promise.resolve(null)
     const escalation = escalations.value.find((item) => item.id === id)
-    if (!escalation || getEscalationOwnership(escalation, agentId.value) !== 'queued') return Promise.resolve(null)
+    if (
+      !escalation ||
+      getEscalationOwnership(escalation, agentId.value) !== 'queued'
+    )
+      return Promise.resolve(null)
     const key = `claim:${id}`
-    if (escalationMutations.has(key)) return escalationMutations.get(key).promise
+    if (escalationMutations.has(key))
+      return escalationMutations.get(key).promise
     const { platform, messenger_id } = parseConversationId(id)
     if (!platform || !messenger_id) return Promise.resolve(null)
     const version = escalationSessionVersion
     const requestBusinessId = businessId.value
     let resolve
-    const promise = new Promise((done) => { resolve = done })
+    const promise = new Promise((done) => {
+      resolve = done
+    })
     const timer = setTimeout(() => {
       const active = escalationMutations.get(key)
       if (!active || active.promise !== promise) return
       escalationMutations.delete(key)
-      escalationClaimPendingIds.value = escalationClaimPendingIds.value.filter((item) => item !== id)
-      if (escalationRequestIsCurrent(version, requestBusinessId)) escalationsError.value = 'Claim confirmation timed out'
+      escalationClaimPendingIds.value = escalationClaimPendingIds.value.filter(
+        (item) => item !== id,
+      )
+      if (escalationRequestIsCurrent(version, requestBusinessId))
+        escalationsError.value = 'Claim confirmation timed out'
       resolve(null)
     }, 12000)
-    escalationMutations.set(key, { promise, resolve, reject: resolve, timer, version, businessId: requestBusinessId, startedAt: new Date().toISOString() })
+    escalationMutations.set(key, {
+      promise,
+      resolve,
+      reject: resolve,
+      timer,
+      version,
+      businessId: requestBusinessId,
+      startedAt: new Date().toISOString(),
+    })
     escalationClaimPendingIds.value = [...escalationClaimPendingIds.value, id]
     const sent = socketApi?.send({
       type: 'claim_chat',
@@ -1038,7 +1255,9 @@ export const useAppStore = defineStore('app', () => {
     if (!sent) {
       clearTimeout(timer)
       escalationMutations.delete(key)
-      escalationClaimPendingIds.value = escalationClaimPendingIds.value.filter((item) => item !== id)
+      escalationClaimPendingIds.value = escalationClaimPendingIds.value.filter(
+        (item) => item !== id,
+      )
       escalationsError.value = 'Not connected to gateway'
       resolve(null)
     }
@@ -1046,27 +1265,54 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function releaseEscalation(id) {
-    if (!escalationQueueAvailable.value || !authenticated.value || !businessId.value || !agentId.value || connectionStatus.value !== 'online') return Promise.resolve(null)
+    if (
+      !escalationQueueAvailable.value ||
+      !authenticated.value ||
+      !businessId.value ||
+      !agentId.value ||
+      connectionStatus.value !== 'online'
+    )
+      return Promise.resolve(null)
     const escalation = escalations.value.find((item) => item.id === id)
-    if (!escalation || getEscalationOwnership(escalation, agentId.value) !== 'mine') return Promise.resolve(null)
+    if (
+      !escalation ||
+      getEscalationOwnership(escalation, agentId.value) !== 'mine'
+    )
+      return Promise.resolve(null)
     const key = `release:${id}`
-    if (escalationMutations.has(key)) return escalationMutations.get(key).promise
+    if (escalationMutations.has(key))
+      return escalationMutations.get(key).promise
     const { platform, messenger_id } = parseConversationId(id)
     if (!platform || !messenger_id) return Promise.resolve(null)
     const version = escalationSessionVersion
     const requestBusinessId = businessId.value
     let resolve
-    const promise = new Promise((done) => { resolve = done })
+    const promise = new Promise((done) => {
+      resolve = done
+    })
     const timer = setTimeout(() => {
       const active = escalationMutations.get(key)
       if (!active || active.promise !== promise) return
       escalationMutations.delete(key)
-      escalationReleasePendingIds.value = escalationReleasePendingIds.value.filter((item) => item !== id)
-      if (escalationRequestIsCurrent(version, requestBusinessId)) escalationsError.value = 'Release confirmation timed out'
+      escalationReleasePendingIds.value =
+        escalationReleasePendingIds.value.filter((item) => item !== id)
+      if (escalationRequestIsCurrent(version, requestBusinessId))
+        escalationsError.value = 'Release confirmation timed out'
       resolve(null)
     }, 12000)
-    escalationMutations.set(key, { promise, resolve, reject: resolve, timer, version, businessId: requestBusinessId, startedAt: new Date().toISOString() })
-    escalationReleasePendingIds.value = [...escalationReleasePendingIds.value, id]
+    escalationMutations.set(key, {
+      promise,
+      resolve,
+      reject: resolve,
+      timer,
+      version,
+      businessId: requestBusinessId,
+      startedAt: new Date().toISOString(),
+    })
+    escalationReleasePendingIds.value = [
+      ...escalationReleasePendingIds.value,
+      id,
+    ]
     const sent = socketApi?.send({
       type: 'release_chat',
       platform,
@@ -1076,7 +1322,8 @@ export const useAppStore = defineStore('app', () => {
     if (!sent) {
       clearTimeout(timer)
       escalationMutations.delete(key)
-      escalationReleasePendingIds.value = escalationReleasePendingIds.value.filter((item) => item !== id)
+      escalationReleasePendingIds.value =
+        escalationReleasePendingIds.value.filter((item) => item !== id)
       escalationsError.value = 'Not connected to gateway'
       resolve(null)
     }
@@ -2321,9 +2568,18 @@ export const useAppStore = defineStore('app', () => {
       businessProfileSaving.value = false
       businessProfileError.value = ''
       clearNotificationState()
-      clearEscalationState(previousBusinessId && nextBusinessId !== previousBusinessId ? 'business_changed' : 'session_reset')
+      clearEscalationState(
+        previousBusinessId && nextBusinessId !== previousBusinessId
+          ? 'business_changed'
+          : 'session_reset',
+      )
+      clearAnalyticsState()
       loadOnboardingProgress()
-      if (previousBusinessId && nextBusinessId !== previousBusinessId && authenticated.value) {
+      if (
+        previousBusinessId &&
+        nextBusinessId !== previousBusinessId &&
+        authenticated.value
+      ) {
         disconnectAgentChannel()
         if (nextBusinessId) connectAgentChannel()
       }
@@ -2396,6 +2652,14 @@ export const useAppStore = defineStore('app', () => {
     escalationClaimPendingIds,
     escalationReleasePendingIds,
     escalationsLastUpdatedAt,
+    analyticsAvailable,
+    analytics,
+    analyticsLoading,
+    analyticsRefreshing,
+    analyticsError,
+    analyticsLoadedForBusinessId,
+    analyticsRangeKey,
+    analyticsLastUpdatedAt,
     notify,
     login,
     registerBusiness,
@@ -2448,6 +2712,8 @@ export const useAppStore = defineStore('app', () => {
     applyEscalationSnapshot,
     applyEscalationEvent,
     clearEscalationState,
+    refreshAnalytics,
+    clearAnalyticsState,
     connectAgentChannel,
   }
 })
