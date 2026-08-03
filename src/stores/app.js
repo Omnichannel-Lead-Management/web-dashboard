@@ -24,6 +24,7 @@ import {
   toAppointmentPayload,
   conversationId,
   parseConversationId,
+  mapBusinessProfile,
 } from '../services/mappers'
 
 const STORAGE = {
@@ -131,6 +132,8 @@ export const useAppStore = defineStore('app', () => {
       'My Business',
   )
   const business = ref(null)
+  const businessProfileSaving = ref(false)
+  const businessProfileError = ref('')
   const agentId = ref(localStorage.getItem(STORAGE.agentId) || 'agent_demo')
   const agentName = ref(localStorage.getItem(STORAGE.agentName) || 'Agent')
   const loadingInbox = ref(false)
@@ -626,6 +629,8 @@ export const useAppStore = defineStore('app', () => {
     loadingLeads.value = false
     loadingLeadDetail.value = false
     business.value = null
+    businessProfileSaving.value = false
+    businessProfileError.value = ''
     faqs.value = []
     faqError.value = ''
     loadingFaqs.value = false
@@ -1057,6 +1062,55 @@ export const useAppStore = defineStore('app', () => {
     businessName.value = result.business.name || businessName.value
     persistSession()
     return business.value
+  }
+
+  async function saveBusinessProfile(changes) {
+    if (!authenticated.value || !businessId.value)
+      throw new Error('No active business session')
+    if (!changes || !Object.keys(changes).length)
+      throw new Error('No business profile changes to save')
+
+    const requestBusinessId = businessId.value
+    const sessionVersion = businessSessionVersion
+    businessProfileSaving.value = true
+    businessProfileError.value = ''
+    try {
+      const result = await gatewayApi.updateBusiness(requestBusinessId, changes)
+      if (
+        !authenticated.value ||
+        sessionVersion !== businessSessionVersion ||
+        businessId.value !== requestBusinessId
+      )
+        return null
+      if (!result?.business || typeof result.business !== 'object')
+        throw new Error('Gateway returned an invalid business profile response')
+
+      const mapped = mapBusinessProfile(result.business)
+      if (!mapped.id || mapped.id !== requestBusinessId) return null
+      business.value = { ...business.value, ...result.business }
+      businessName.value = mapped.name || businessName.value
+      persistSession()
+      notify('Business profile saved')
+      return mapped
+    } catch (error) {
+      if (
+        authenticated.value &&
+        sessionVersion === businessSessionVersion &&
+        businessId.value === requestBusinessId
+      ) {
+        businessProfileError.value =
+          error.message || 'Business profile could not be saved'
+        notify(businessProfileError.value, 'error')
+      }
+      throw error
+    } finally {
+      if (
+        authenticated.value &&
+        sessionVersion === businessSessionVersion &&
+        businessId.value === requestBusinessId
+      )
+        businessProfileSaving.value = false
+    }
   }
 
   async function refreshChatbotConfig() {
@@ -1626,6 +1680,9 @@ export const useAppStore = defineStore('app', () => {
   watch(
     businessId,
     () => {
+      businessSessionVersion += 1
+      businessProfileSaving.value = false
+      businessProfileError.value = ''
       loadOnboardingProgress()
     },
     { immediate: true, flush: 'sync' },
@@ -1664,6 +1721,8 @@ export const useAppStore = defineStore('app', () => {
     businessId,
     businessName,
     business,
+    businessProfileSaving,
+    businessProfileError,
     agentId,
     agentName,
     loadingInbox,
@@ -1701,6 +1760,7 @@ export const useAppStore = defineStore('app', () => {
     refreshConversations,
     loadHistory,
     refreshBusiness,
+    saveBusinessProfile,
     refreshFaqs,
     refreshConversationTemplates,
     refreshBusinessFlows,

@@ -1,49 +1,30 @@
 <script setup>
-import { ref, watch, reactive, computed, onMounted } from 'vue'
+import { ref, watch, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  Send,
-  MessageCircleMore,
-  Globe2,
-  Copy,
-} from 'lucide-vue-next'
+import { Send, MessageCircleMore, Globe2 } from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
 import SettingsNavigation from '../components/settings/SettingsNavigation.vue'
 import FaqManager from '../components/settings/FaqManager.vue'
 import ChatbotSettings from '../components/settings/ChatbotSettings.vue'
 import WhatsAppConnect from '../components/settings/WhatsAppConnect.vue'
 import TelegramConnect from '../components/settings/TelegramConnect.vue'
+import BusinessProfileSettings from '../components/settings/BusinessProfileSettings.vue'
 import AppButton from '../components/common/AppButton.vue'
-import AppBadge from '../components/common/AppBadge.vue'
 import { useAppStore } from '../stores/app'
+import { activeBusinessForTenant } from '../services/businessProfile'
 
 const store = useAppStore()
 const route = useRoute()
 const router = useRouter()
 const activeSection = ref(route.query.section || 'channels')
 
-/** Real business record; channel state below is derived from it, not assumed. */
-const business = ref(null)
-const businessProfile = reactive({
-  name: store.businessName || 'My Business',
-  id: store.businessId || '',
-  sector: '',
-  email: '',
-  city: '',
-  phone: '',
-  description: '',
-})
-
+const activeBusiness = computed(() =>
+  activeBusinessForTenant(store.business, store.businessId),
+)
 async function loadBusiness() {
   if (!store.businessId) return
   try {
-    const result = await store.refreshBusiness()
-    if (!result) return
-    business.value = result
-    businessProfile.name = result.name || businessProfile.name
-    businessProfile.id = result.id
-    businessProfile.sector = result.sector || ''
-    businessProfile.email = result.owner_email || ''
+    await store.refreshBusiness()
   } catch (error) {
     store.notify(error.message || 'Failed to load business', 'error')
   }
@@ -51,26 +32,19 @@ async function loadBusiness() {
 
 onMounted(loadBusiness)
 
-watch(
-  () => store.business,
-  (value) => {
-    business.value = value
-  },
-)
-
 const channels = computed(() => [
   {
     name: 'Telegram',
-    connected: Boolean(business.value?.telegram_connected),
-    detail: business.value?.telegram_bot_username
-      ? `@${business.value.telegram_bot_username}`
+    connected: Boolean(activeBusiness.value?.telegram_connected),
+    detail: activeBusiness.value?.telegram_bot_username
+      ? `@${activeBusiness.value.telegram_bot_username}`
       : 'Paste a bot token to connect',
   },
   {
     name: 'WhatsApp',
-    connected: Boolean(business.value?.whatsapp_connected),
-    detail: business.value?.whatsapp_instance_name
-      ? `Instance ${business.value.whatsapp_instance_name}`
+    connected: Boolean(activeBusiness.value?.whatsapp_connected),
+    detail: activeBusiness.value?.whatsapp_instance_name
+      ? `Instance ${activeBusiness.value.whatsapp_instance_name}`
       : 'Scan a QR to link a number',
   },
   {
@@ -92,7 +66,6 @@ function selectSection(sectionId) {
   activeSection.value = sectionId
   router.replace({ query: { section: sectionId } })
 }
-
 </script>
 <template>
   <AppShell>
@@ -153,57 +126,10 @@ function selectSection(sectionId) {
             <ChatbotSettings :business-name="store.businessName" />
           </template>
           <template v-else-if="activeSection === 'faqs'">
-            <FaqManager :sector="business?.sector || businessProfile.sector" />
+            <FaqManager :sector="activeBusiness?.sector || ''" />
           </template>
           <template v-else>
-            <h2>Business profile</h2>
-            <p class="intro">
-              These details help the chatbot give accurate answers.
-            </p>
-            <form @submit.prevent>
-              <label class="field">
-                Business name
-                <input v-model="businessProfile.name" required />
-              </label>
-              <label class="field">
-                Sector
-                <input v-model="businessProfile.sector" />
-              </label>
-              <label class="field">
-                City
-                <input v-model="businessProfile.city" />
-              </label>
-              <label class="field">
-                Business email
-                <input v-model="businessProfile.email" type="email" />
-              </label>
-              <label class="field">
-                Phone
-                <input v-model="businessProfile.phone" />
-              </label>
-              <label class="field">
-                Business ID
-                <div class="readonly">
-                  <span class="mono">{{ businessProfile.id }}</span>
-                  <Copy :size="15" />
-                </div>
-              </label>
-              <label class="field wide">
-                Business description
-                <textarea
-                  v-model="businessProfile.description"
-                  rows="4"
-                  placeholder="Describe your business"
-                />
-              </label>
-              <AppButton
-                class="wide"
-                disabled
-                title="Business profile updates are not available yet"
-              >
-                Save profile
-              </AppButton>
-            </form>
+            <BusinessProfileSettings />
           </template>
         </section>
       </div>

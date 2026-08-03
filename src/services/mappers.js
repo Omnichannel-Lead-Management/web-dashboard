@@ -201,7 +201,9 @@ export function mapConversationFlow(source = {}) {
     isTemplate: flowBoolean(source.is_template ?? source.isTemplate, false),
     flowJson,
     flowError:
-      rawFlow !== undefined && !flowJson ? 'This flow has malformed step data.' : '',
+      rawFlow !== undefined && !flowJson
+        ? 'This flow has malformed step data.'
+        : '',
     triggerIntents: Array.isArray(source.trigger_intents)
       ? [...source.trigger_intents].map(String)
       : [],
@@ -217,7 +219,11 @@ function nodeText(node) {
 
 /** Deterministic, bounded graph traversal for the read-only owner view. */
 export function mapFlowSteps(flowJson, maxSteps = 100) {
-  if (!flowJson || typeof flowJson !== 'object' || !Array.isArray(flowJson.nodes)) {
+  if (
+    !flowJson ||
+    typeof flowJson !== 'object' ||
+    !Array.isArray(flowJson.nodes)
+  ) {
     throw new Error('This flow has malformed step data.')
   }
   const nodes = new Map(
@@ -225,7 +231,8 @@ export function mapFlowSteps(flowJson, maxSteps = 100) {
       .filter((node) => node && typeof node.id === 'string')
       .map((node) => [node.id, node]),
   )
-  const start = typeof flowJson.start === 'string' ? flowJson.start : flowJson.nodes[0]?.id
+  const start =
+    typeof flowJson.start === 'string' ? flowJson.start : flowJson.nodes[0]?.id
   if (!start) return []
   const visited = new Set()
   const steps = []
@@ -270,9 +277,10 @@ export function mapFlowSteps(flowJson, maxSteps = 100) {
     })
     if (node.type === 'branch' && Array.isArray(node.conditions)) {
       node.conditions.forEach((condition) => {
-        const label = condition.default === true
-          ? 'Otherwise'
-          : `When response includes “${String(condition.keyword ?? '')}”`
+        const label =
+          condition.default === true
+            ? 'Otherwise'
+            : `When response includes “${String(condition.keyword ?? '')}”`
         walk(condition.next, label)
       })
     } else {
@@ -883,4 +891,81 @@ export function mapHistoryMessage(entry) {
     kind: mediaKind(entry.metadata),
     time: formatTime(entry.timestamp),
   }
+}
+import { BUSINESS_DAYS } from './businessProfile'
+
+function emptyBusinessHours() {
+  return Object.fromEntries(
+    BUSINESS_DAYS.map((day) => [day, { enabled: false, open: '', close: '' }]),
+  )
+}
+
+function normalizeBusinessHours(value) {
+  const result = emptyBusinessHours()
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return result
+  for (const day of BUSINESS_DAYS) {
+    const source = value[day]
+    if (!source || typeof source !== 'object' || Array.isArray(source)) continue
+    result[day] = {
+      enabled: source.enabled === true,
+      open: typeof source.open === 'string' ? source.open.trim() : '',
+      close: typeof source.close === 'string' ? source.close.trim() : '',
+    }
+  }
+  return result
+}
+
+export function mapBusinessProfile(source = {}) {
+  const hours = source.business_hours ?? source.businessHours
+  const updated = source.updated_at ?? source.updatedAt
+  return {
+    id: String(source.id ?? '').trim(),
+    name: String(source.name ?? '').trim(),
+    sector: String(source.sector ?? '').trim(),
+    ownerEmail: String(source.owner_email ?? source.ownerEmail ?? '').trim(),
+    timezone: String(source.timezone ?? '').trim(),
+    contactPhone: String(
+      source.contact_phone ?? source.contactPhone ?? '',
+    ).trim(),
+    address: String(source.address ?? '').trim(),
+    businessHours: normalizeBusinessHours(hours),
+    updatedAt: updated == null ? null : updated,
+  }
+}
+
+function businessHoursPayload(hours) {
+  return Object.fromEntries(
+    BUSINESS_DAYS.map((day) => {
+      const value = hours[day]
+      return [
+        day,
+        value.enabled
+          ? { enabled: true, open: value.open, close: value.close }
+          : { enabled: false },
+      ]
+    }),
+  )
+}
+
+export function toBusinessProfilePatch(original, draft) {
+  const before = mapBusinessProfile(original)
+  const after = mapBusinessProfile(draft)
+  const patch = {}
+  const fields = [
+    ['name', 'name'],
+    ['sector', 'sector'],
+    ['ownerEmail', 'owner_email'],
+    ['timezone', 'timezone'],
+    ['contactPhone', 'contact_phone'],
+    ['address', 'address'],
+  ]
+  for (const [frontend, backend] of fields) {
+    if (before[frontend] !== after[frontend]) patch[backend] = after[frontend]
+  }
+  if (
+    JSON.stringify(before.businessHours) !== JSON.stringify(after.businessHours)
+  ) {
+    patch.business_hours = businessHoursPayload(after.businessHours)
+  }
+  return patch
 }

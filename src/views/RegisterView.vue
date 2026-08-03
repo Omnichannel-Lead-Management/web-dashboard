@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/app'
 import AppButton from '../components/common/AppButton.vue'
+import { BUSINESS_SECTORS } from '../services/businessProfile'
 
 const router = useRouter()
 const store = useAppStore()
@@ -64,9 +65,9 @@ async function submitRegistration() {
           Sector *
           <select v-model="registrationForm.sector" required>
             <option disabled value="">Select a sector</option>
-            <option>Salon</option>
-            <option>Tutor</option>
-            <option>Photography</option>
+            <option v-for="sector in BUSINESS_SECTORS" :key="sector">
+              {{ sector }}
+            </option>
           </select>
         </label>
         <label class="field">

@@ -40,6 +40,13 @@ export const gatewayApi = {
     return request(`/api/businesses/${encodeURIComponent(id)}`)
   },
 
+  updateBusiness(id, changes) {
+    return request(`/api/businesses/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: JSON.stringify(changes),
+    })
+  },
+
   listConversations(businessId) {
     return request(
       `/api/businesses/${encodeURIComponent(businessId)}/conversations`,

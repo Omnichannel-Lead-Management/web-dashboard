@@ -6,26 +6,80 @@ import { describe, expect, test } from 'bun:test'
  * against a local mock fetch.
  */
 describe('gatewayApi integration (mock fetch)', () => {
+  test('business update uses an encoded PATCH with only the supplied fields', async () => {
+    const calls = []
+    globalThis.fetch = async (url, options = {}) => {
+      calls.push({ url: String(url), options })
+      return Response.json({ business: { id: 'biz/a & b', name: 'Updated' } })
+    }
+    const { gatewayApi } = await import(
+      `./gatewayApi.js?t=business-update-${Date.now()}`
+    )
+    await gatewayApi.updateBusiness('biz/a & b', {
+      name: 'Updated',
+      timezone: '',
+    })
+
+    expect(new URL(calls[0].url).pathname).toBe(
+      '/api/businesses/biz%2Fa%20%26%20b',
+    )
+    expect(calls[0].options.method).toBe('PATCH')
+    expect(JSON.parse(calls[0].options.body)).toEqual({
+      name: 'Updated',
+      timezone: '',
+    })
+  })
+
+  test('business update preserves a 404 message, status, and body', async () => {
+    const body = { error: 'Business update endpoint not found' }
+    globalThis.fetch = async () => Response.json(body, { status: 404 })
+    const { gatewayApi } = await import(
+      `./gatewayApi.js?t=business-update-error-${Date.now()}`
+    )
+    try {
+      await gatewayApi.updateBusiness('biz_1', { name: 'Updated' })
+      throw new Error('Expected update to fail')
+    } catch (error) {
+      expect(error.message).toBe(body.error)
+      expect(error.status).toBe(404)
+      expect(error.body).toEqual(body)
+    }
+  })
   test('template and flow methods use the verified encoded contracts', async () => {
     const calls = []
     globalThis.fetch = async (url, options = {}) => {
       calls.push({ url: String(url), options })
-      return Response.json({ success: true, templates: [], stored: [], flows: [] })
+      return Response.json({
+        success: true,
+        templates: [],
+        stored: [],
+        flows: [],
+      })
     }
     const { gatewayApi } = await import(`./gatewayApi.js?t=flows-${Date.now()}`)
     await gatewayApi.listTemplates()
-    await gatewayApi.attachTemplate('biz/a & b', { sector: 'salon', created_by: 'agent_1' })
+    await gatewayApi.attachTemplate('biz/a & b', {
+      sector: 'salon',
+      created_by: 'agent_1',
+    })
     await gatewayApi.listFlows('biz/a & b')
     await gatewayApi.getFlow('flow/a')
     await gatewayApi.updateFlow('flow/a', { is_active: false })
     await gatewayApi.deleteFlow('flow/a')
 
     expect(new URL(calls[0].url).pathname).toBe('/api/templates')
-    expect(new URL(calls[1].url).pathname).toBe('/api/businesses/biz%2Fa%20%26%20b/attach-template')
+    expect(new URL(calls[1].url).pathname).toBe(
+      '/api/businesses/biz%2Fa%20%26%20b/attach-template',
+    )
     expect(calls[1].options.method).toBe('POST')
-    expect(JSON.parse(calls[1].options.body)).toEqual({ sector: 'salon', created_by: 'agent_1' })
+    expect(JSON.parse(calls[1].options.body)).toEqual({
+      sector: 'salon',
+      created_by: 'agent_1',
+    })
     expect(new URL(calls[2].url).pathname).toBe('/api/flows')
-    expect(new URL(calls[2].url).searchParams.get('businessId')).toBe('biz/a & b')
+    expect(new URL(calls[2].url).searchParams.get('businessId')).toBe(
+      'biz/a & b',
+    )
     expect(new URL(calls[3].url).pathname).toBe('/api/flows/flow%2Fa')
     expect(calls[4].options.method).toBe('PATCH')
     expect(JSON.parse(calls[4].options.body)).toEqual({ is_active: false })
@@ -36,7 +90,9 @@ describe('gatewayApi integration (mock fetch)', () => {
   test('flow errors preserve backend message, status and body', async () => {
     const body = { success: false, error: 'Flow proxy unavailable' }
     globalThis.fetch = async () => Response.json(body, { status: 503 })
-    const { gatewayApi } = await import(`./gatewayApi.js?t=flow-error-${Date.now()}`)
+    const { gatewayApi } = await import(
+      `./gatewayApi.js?t=flow-error-${Date.now()}`
+    )
     try {
       await gatewayApi.listFlows('biz_1')
       throw new Error('Expected flow loading to fail')
@@ -51,7 +107,11 @@ describe('gatewayApi integration (mock fetch)', () => {
     const calls = []
     globalThis.fetch = async (url, options = {}) => {
       calls.push({ url: String(url), options })
-      return Response.json({ success: true, ok: true, bot_username: 'test_bot' })
+      return Response.json({
+        success: true,
+        ok: true,
+        bot_username: 'test_bot',
+      })
     }
     const { gatewayApi } = await import(`./gatewayApi.js?t=tg-${Date.now()}`)
     const token = '123456:sample-token'
@@ -63,13 +123,17 @@ describe('gatewayApi integration (mock fetch)', () => {
     expect(calls[0].options.method).toBe('POST')
     expect(JSON.parse(calls[0].options.body)).toEqual({ bot_token: token })
     expect(calls[0].url.includes(token)).toBe(false)
-    expect(Object.keys(JSON.parse(calls[0].options.body))).toEqual(['bot_token'])
+    expect(Object.keys(JSON.parse(calls[0].options.body))).toEqual([
+      'bot_token',
+    ])
   })
 
   test('Telegram errors preserve backend message, status and body', async () => {
     const body = { success: false, error: 'Invalid Telegram bot token' }
     globalThis.fetch = async () => Response.json(body, { status: 400 })
-    const { gatewayApi } = await import(`./gatewayApi.js?t=tg-error-${Date.now()}`)
+    const { gatewayApi } = await import(
+      `./gatewayApi.js?t=tg-error-${Date.now()}`
+    )
     try {
       await gatewayApi.connectTelegram('biz_1', 'invalid-token')
       throw new Error('Expected Telegram connection to fail')
