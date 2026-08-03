@@ -3,7 +3,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/app'
 import AppButton from '../components/common/AppButton.vue'
-import { BUSINESS_SECTORS } from '../services/businessProfile'
+import { BUSINESS_SECTORS } from '../constants/businessSectors'
 
 const router = useRouter()
 const store = useAppStore()
@@ -21,6 +21,7 @@ const registrationForm = reactive({
 async function submitRegistration() {
   if (
     !registrationForm.business ||
+    !registrationForm.sector ||
     !registrationForm.owner ||
     !/^\S+@\S+\.\S+$/.test(registrationForm.email) ||
     registrationForm.password.length < 6
@@ -65,8 +66,12 @@ async function submitRegistration() {
           Sector *
           <select v-model="registrationForm.sector" required>
             <option disabled value="">Select a sector</option>
-            <option v-for="sector in BUSINESS_SECTORS" :key="sector">
-              {{ sector }}
+            <option
+              v-for="sector in BUSINESS_SECTORS"
+              :key="sector.value"
+              :value="sector.value"
+            >
+              {{ sector.label }}
             </option>
           </select>
         </label>

@@ -43,6 +43,21 @@ import {
 import { gatewayWsUrl } from '../config.js'
 
 describe('business profile mappers', () => {
+  test('normalizes known sector casing and preserves unknown values', () => {
+    const lower = { id: 'biz_1', sector: 'salon', name: 'Salon' }
+    const unknown = { id: 'biz_2', sector: ' Food Service ', name: 'Cafe' }
+    const lowerCopy = structuredClone(lower)
+    const unknownCopy = structuredClone(unknown)
+    expect(mapBusinessProfile(lower).sector).toBe('Salon')
+    expect(mapBusinessProfile({ sector: 'PHOTOGRAPHY' }).sector).toBe(
+      'Photography',
+    )
+    expect(mapBusinessProfile(unknown).sector).toBe('Food Service')
+    expect(mapBusinessProfile({ sector: '' }).sector).toBe('')
+    expect(mapBusinessProfile({ sector: null }).sector).toBe('')
+    expect(lower).toEqual(lowerCopy)
+    expect(unknown).toEqual(unknownCopy)
+  })
   test('maps current and future fields without mutating source', () => {
     const source = {
       id: ' biz_1 ',

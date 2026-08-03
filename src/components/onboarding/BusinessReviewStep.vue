@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { Building2, RefreshCw } from 'lucide-vue-next'
 import AppButton from '../common/AppButton.vue'
 import { useAppStore } from '../../stores/app'
+import { getBusinessSectorLabel } from '../../constants/businessSectors'
 
 const store = useAppStore()
 const loading = ref(false)
@@ -48,7 +49,9 @@ onMounted(() => {
           </div>
           <div>
             <dt>Sector</dt>
-            <dd>{{ business.sector }}</dd>
+            <dd>
+              {{ getBusinessSectorLabel(business.sector) || 'Not provided' }}
+            </dd>
           </div>
           <div>
             <dt>Owner email</dt>

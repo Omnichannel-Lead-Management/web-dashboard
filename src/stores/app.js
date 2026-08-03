@@ -15,6 +15,10 @@ import {
   isValidAnalyticsDateRange,
 } from '../services/analyticsDateRange'
 import {
+  BUSINESS_SECTORS,
+  normalizeBusinessSector,
+} from '../constants/businessSectors'
+import {
   getEscalationOwnership,
   mapEscalation,
   mapEscalationQueue,
@@ -1117,7 +1121,7 @@ export const useAppStore = defineStore('app', () => {
   async function registerBusiness(form) {
     const created = await gatewayApi.createBusiness({
       name: form.business,
-      sector: form.sector || 'Salon',
+      sector: normalizeBusinessSector(form.sector) || BUSINESS_SECTORS[0].value,
       owner_email: form.email,
     })
     businessId.value = created.business.id

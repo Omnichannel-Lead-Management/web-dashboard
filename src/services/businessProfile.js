@@ -1,5 +1,3 @@
-export const BUSINESS_SECTORS = ['Salon', 'Tutor', 'Photography']
-
 export const BUSINESS_TIMEZONES = [
   'Asia/Colombo',
   'Asia/Kolkata',

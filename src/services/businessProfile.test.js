@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { computed, ref } from 'vue'
 import {
-  BUSINESS_SECTORS,
   BUSINESS_TIMEZONES,
   isValidBusinessEmail,
   isValidBusinessPhone,
@@ -13,6 +12,7 @@ import {
   reconcileBusinessProfileDraft,
   canSubmitBusinessProfile,
 } from './businessProfile.js'
+import { getBusinessSectorOptions } from '../constants/businessSectors.js'
 import { mapBusinessProfile, toBusinessProfilePatch } from './mappers.js'
 
 describe('business profile validation', () => {
@@ -38,9 +38,10 @@ describe('business profile validation', () => {
   })
 
   test('preserves unknown sector and timezone options', () => {
-    expect(optionsWithCurrent(BUSINESS_SECTORS, 'Healthcare')[0]).toBe(
-      'Healthcare',
-    )
+    expect(getBusinessSectorOptions('Healthcare')[0]).toEqual({
+      value: 'Healthcare',
+      label: 'Current value: Healthcare',
+    })
     expect(optionsWithCurrent(BUSINESS_TIMEZONES, 'Pacific/Auckland')[0]).toBe(
       'Pacific/Auckland',
     )

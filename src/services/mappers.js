@@ -1,3 +1,6 @@
+import { normalizeBusinessSector } from '../constants/businessSectors'
+import { BUSINESS_DAYS } from './businessProfile'
+
 function initialsFrom(name = '') {
   const parts = String(name).trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return '?'
@@ -930,8 +933,6 @@ export function mapHistoryMessage(entry) {
     time: formatTime(entry.timestamp),
   }
 }
-import { BUSINESS_DAYS } from './businessProfile'
-
 function emptyBusinessHours() {
   return Object.fromEntries(
     BUSINESS_DAYS.map((day) => [day, { enabled: false, open: '', close: '' }]),
@@ -959,7 +960,7 @@ export function mapBusinessProfile(source = {}) {
   return {
     id: String(source.id ?? '').trim(),
     name: String(source.name ?? '').trim(),
-    sector: String(source.sector ?? '').trim(),
+    sector: normalizeBusinessSector(source.sector),
     ownerEmail: String(source.owner_email ?? source.ownerEmail ?? '').trim(),
     timezone: String(source.timezone ?? '').trim(),
     contactPhone: String(

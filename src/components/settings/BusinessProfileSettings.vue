@@ -7,7 +7,6 @@ import {
   toBusinessProfilePatch,
 } from '../../services/mappers'
 import {
-  BUSINESS_SECTORS,
   BUSINESS_TIMEZONES,
   isValidBusinessEmail,
   isValidBusinessPhone,
@@ -18,6 +17,7 @@ import {
   reconcileBusinessProfileDraft,
   canSubmitBusinessProfile,
 } from '../../services/businessProfile'
+import { getBusinessSectorOptions } from '../../constants/businessSectors'
 import { useAppStore } from '../../stores/app'
 import { businessProfileUpdateEnabled } from '../../config'
 
@@ -32,9 +32,7 @@ const saveStatus = ref('')
 const confirmedBusiness = computed(() =>
   store.business?.id === store.businessId ? store.business : null,
 )
-const sectorOptions = computed(() =>
-  optionsWithCurrent(BUSINESS_SECTORS, draft.sector),
-)
+const sectorOptions = computed(() => getBusinessSectorOptions(draft.sector))
 const timezoneOptions = computed(() =>
   optionsWithCurrent(BUSINESS_TIMEZONES, draft.timezone),
 )
@@ -231,10 +229,10 @@ watch(confirmedBusiness, (business) => {
             <option disabled value="">Select a sector</option>
             <option
               v-for="sector in sectorOptions"
-              :key="sector"
-              :value="sector"
+              :key="sector.value"
+              :value="sector.value"
             >
-              {{ sector }}
+              {{ sector.label }}
             </option>
           </select>
           <small v-if="validation.sector" class="field-error">
