@@ -18,6 +18,11 @@ const routes = [
     component: () => import('../views/RegisterView.vue'),
     meta: { guest: true },
   },
+  {
+    path: '/web-chat',
+    component: () => import('../views/WebChatView.vue'),
+    meta: { guest: true, publicChat: true },
+  },
   { path: '/inbox', component: () => import('../views/InboxView.vue') },
   { path: '/leads', component: () => import('../views/LeadsView.vue') },
   {

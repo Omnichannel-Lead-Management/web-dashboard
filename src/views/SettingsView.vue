@@ -9,9 +9,11 @@ import ChatbotSettings from '../components/settings/ChatbotSettings.vue'
 import WhatsAppConnect from '../components/settings/WhatsAppConnect.vue'
 import TelegramConnect from '../components/settings/TelegramConnect.vue'
 import BusinessProfileSettings from '../components/settings/BusinessProfileSettings.vue'
+import WebChatSettings from '../components/settings/WebChatSettings.vue'
 import AppButton from '../components/common/AppButton.vue'
 import { useAppStore } from '../stores/app'
 import { activeBusinessForTenant } from '../services/businessProfile'
+import { webChatEnabled } from '../config'
 
 const store = useAppStore()
 const route = useRoute()
@@ -49,8 +51,8 @@ const channels = computed(() => [
   },
   {
     name: 'Web chat',
-    connected: true,
-    detail: 'Widget active',
+    connected: webChatEnabled,
+    detail: webChatEnabled ? 'Prototype enabled' : 'Preview unavailable',
   },
 ])
 watch(
@@ -107,12 +109,18 @@ function selectSection(sectionId) {
                 @click="
                   selectSection(
                     channel.name === 'Web chat'
-                      ? 'chatbot'
+                      ? 'webchat'
                       : channel.name.toLowerCase(),
                   )
                 "
               >
-                {{ channel.connected ? 'Manage' : 'Connect' }}
+                {{
+                  channel.name === 'Web chat'
+                    ? 'Preview'
+                    : channel.connected
+                      ? 'Manage'
+                      : 'Connect'
+                }}
               </AppButton>
             </article>
           </template>
@@ -121,6 +129,9 @@ function selectSection(sectionId) {
           </template>
           <template v-else-if="activeSection === 'whatsapp'">
             <WhatsAppConnect />
+          </template>
+          <template v-else-if="activeSection === 'webchat'">
+            <WebChatSettings />
           </template>
           <template v-else-if="activeSection === 'chatbot'">
             <ChatbotSettings :business-name="store.businessName" />
