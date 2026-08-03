@@ -14,16 +14,30 @@ globalThis.localStorage = {
 function deferred() {
   let resolve
   let reject
-  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  const promise = new Promise((res, rej) => {
+    resolve = res
+    reject = rej
+  })
   return { promise, resolve, reject }
 }
 
 function flow(overrides = {}) {
   return {
-    id: 'flow_1', business_id: 'biz_1', name: 'Salon flow', sector: 'salon',
-    is_active: true, is_template: false, created_at: 1000, updated_at: 1000,
-    created_by: 'agent_1', flow: { start: 'n1', nodes: [{ id: 'n1', type: 'message', content: 'Hi' }] },
-    trigger_intents: ['pricing'], ...overrides,
+    id: 'flow_1',
+    business_id: 'biz_1',
+    name: 'Salon flow',
+    sector: 'salon',
+    is_active: true,
+    is_template: false,
+    created_at: 1000,
+    updated_at: 1000,
+    created_by: 'agent_1',
+    flow: {
+      start: 'n1',
+      nodes: [{ id: 'n1', type: 'message', content: 'Hi' }],
+    },
+    trigger_intents: ['pricing'],
+    ...overrides,
   }
 }
 
@@ -41,7 +55,9 @@ describe('flow/template store actions', () => {
   test('loads templates and active-business flows', async () => {
     gatewayApi.listTemplates = async () => ({
       success: true,
-      templates: [{ id: 'tmpl_1', sector: 'salon', name: 'Salon', trigger_intents: [] }],
+      templates: [
+        { id: 'tmpl_1', sector: 'salon', name: 'Salon', trigger_intents: [] },
+      ],
       stored: [{ id: 'tmpl_1', sector: 'salon', flow: flow().flow }],
     })
     let receivedBusiness
@@ -59,7 +75,9 @@ describe('flow/template store actions', () => {
   test('rejects malformed successful lists', async () => {
     gatewayApi.listTemplates = async () => ({ success: true })
     gatewayApi.listFlows = async () => ({ success: true })
-    await expect(store.refreshConversationTemplates()).rejects.toThrow('invalid template')
+    await expect(store.refreshConversationTemplates()).rejects.toThrow(
+      'invalid template',
+    )
     await expect(store.refreshBusinessFlows()).rejects.toThrow('invalid flow')
   })
 
@@ -76,11 +94,40 @@ describe('flow/template store actions', () => {
     const attachPromise = store.attachConversationTemplate({ sector: 'salon' })
     expect(store.businessFlows).toHaveLength(0)
     pendingAttach.resolve({ success: true, flow: flow() })
-    await attachPromise
+    expect((await attachPromise).id).toBe('flow_1')
     pendingList.resolve({ success: true, flows: [] })
     await listPromise
     expect(store.businessFlows.map((item) => item.id)).toEqual(['flow_1'])
-    await expect(store.attachConversationTemplate({ sector: 'salon' })).rejects.toThrow('already attached')
+    expect(store.toast?.message).toContain('attached')
+    await expect(
+      store.attachConversationTemplate({ sector: 'salon' }),
+    ).rejects.toThrow('already attached')
+  })
+
+  test('stale attachment cannot update or notify the new business', async () => {
+    const pending = deferred()
+    gatewayApi.attachTemplate = () => pending.promise
+    const attachment = store.attachConversationTemplate({ sector: 'salon' })
+
+    store.businessId = 'biz_2'
+    pending.resolve({ success: true, flow: flow() })
+
+    expect(await attachment).toBeNull()
+    expect(store.businessFlows).toEqual([])
+    expect(store.toast).toBeNull()
+  })
+
+  test('attachment with a mismatched returned business is ignored', async () => {
+    gatewayApi.attachTemplate = async () => ({
+      success: true,
+      flow: flow({ business_id: 'biz_2' }),
+    })
+
+    expect(
+      await store.attachConversationTemplate({ sector: 'salon' }),
+    ).toBeNull()
+    expect(store.businessFlows).toEqual([])
+    expect(store.toast).toBeNull()
   })
 
   test('active toggle is optimistic, confirms, and an older list cannot restore it', async () => {
@@ -98,8 +145,12 @@ describe('flow/template store actions', () => {
 
   test('failed toggle rolls back the full flow without invalidating a valid list', async () => {
     store.businessFlows = [mapLocal(flow())]
-    gatewayApi.updateFlow = async () => { throw new Error('toggle failed') }
-    await expect(store.updateBusinessFlow('flow_1', { isActive: false })).rejects.toThrow('toggle failed')
+    gatewayApi.updateFlow = async () => {
+      throw new Error('toggle failed')
+    }
+    await expect(
+      store.updateBusinessFlow('flow_1', { isActive: false }),
+    ).rejects.toThrow('toggle failed')
     expect(store.businessFlows[0].isActive).toBe(true)
     expect(store.flowError).toBe('toggle failed')
   })

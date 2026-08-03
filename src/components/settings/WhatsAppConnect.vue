@@ -21,6 +21,7 @@ import {
   shouldPollWhatsApp,
 } from '../../services/whatsappConnection'
 
+const emit = defineEmits(['connection-change'])
 const store = useAppStore()
 const state = ref('idle')
 const errorMessage = ref('')
@@ -69,6 +70,7 @@ function enterError(error, requestGeneration, requestBusinessId) {
   if (!current(requestGeneration, requestBusinessId)) return
   clearPollTimer()
   state.value = 'error'
+  emit('connection-change', false)
   qrImage.value = ''
   errorMessage.value = error?.message || 'WhatsApp connection failed'
 }
@@ -76,6 +78,7 @@ function enterError(error, requestGeneration, requestBusinessId) {
 async function confirmConnected(mapped, requestGeneration, requestBusinessId) {
   if (!current(requestGeneration, requestBusinessId)) return
   state.value = 'connected'
+  emit('connection-change', true)
   qrImage.value = ''
   clearPollTimer()
   instanceName.value =
@@ -199,6 +202,7 @@ function returnToIdle() {
   errorMessage.value = ''
   connectionStatus.value = 'Not connected'
   state.value = 'idle'
+  emit('connection-change', false)
 }
 
 async function initializeSession() {
@@ -210,6 +214,7 @@ async function initializeSession() {
   instanceName.value = currentBusiness.value?.whatsapp_instance_name || ''
   if (!store.authenticated || !requestBusinessId) {
     state.value = 'idle'
+    emit('connection-change', false)
     return
   }
   state.value = 'generating'
@@ -225,6 +230,7 @@ async function initializeSession() {
     } else {
       connectionStatus.value = mapped.status || 'Not connected'
       state.value = initial.state
+      emit('connection-change', false)
     }
   } catch (error) {
     enterError(error, requestGeneration, requestBusinessId)
@@ -251,8 +257,9 @@ onBeforeUnmount(() => {
         conversations in this dashboard.
       </p>
       <p v-if="activeInstanceName" class="existing-instance">
-        Existing instance <b>{{ activeInstanceName }}</b> is not currently
-        connected. Continue to request a new QR code.
+        Existing instance
+        <b>{{ activeInstanceName }}</b>
+        is not currently connected. Continue to request a new QR code.
       </p>
       <AppButton @click="connect">Connect WhatsApp</AppButton>
     </template>

@@ -20,6 +20,7 @@ import {
   telegramSafeErrorMessage,
 } from '../../services/telegramConnection'
 
+const emit = defineEmits(['connection-change'])
 const store = useAppStore()
 const state = ref('idle')
 const token = ref('')
@@ -58,6 +59,7 @@ function initializeSession() {
     currentBusiness.value?.telegram_connected
       ? 'connected'
       : 'idle'
+  emit('connection-change', state.value === 'connected')
 }
 
 function clearSecret() {
@@ -95,6 +97,7 @@ async function connect() {
     if (!current(requestGeneration, requestBusinessId)) return
     botUsername.value = mapped.botUsername
     state.value = 'connected'
+    emit('connection-change', true)
     clearSecret()
     await refreshTelegramBusinessBestEffort(() => store.refreshBusiness())
   } catch (error) {
@@ -142,7 +145,10 @@ onBeforeUnmount(() => {
         <CheckCircle2 :size="28" />
         <div>
           <h2>Telegram connected</h2>
-          <p v-if="botUsername">Bot username: <b>@{{ botUsername }}</b></p>
+          <p v-if="botUsername">
+            Bot username:
+            <b>@{{ botUsername }}</b>
+          </p>
           <p>Customer Telegram messages can now arrive in the dashboard.</p>
         </div>
       </div>
@@ -175,8 +181,16 @@ onBeforeUnmount(() => {
 
       <ol>
         <li>Open Telegram.</li>
-        <li>Search for <b>@BotFather</b>.</li>
-        <li>Send <code>/newbot</code>.</li>
+        <li>
+          Search for
+          <b>@BotFather</b>
+          .
+        </li>
+        <li>
+          Send
+          <code>/newbot</code>
+          .
+        </li>
         <li>Follow the instructions.</li>
         <li>Copy the generated bot token.</li>
         <li>Paste it into the dashboard.</li>

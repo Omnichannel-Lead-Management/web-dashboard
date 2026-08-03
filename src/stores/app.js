@@ -1,9 +1,15 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { gatewayApi } from '../services/gatewayApi'
 import { appointmentService } from '../services/appointmentService'
 import { leadService } from '../services/leadService'
 import { createAgentSocket } from '../services/agentSocket'
+import {
+  createOnboardingProgress,
+  loadOnboardingProgress as readOnboardingProgress,
+  removeOnboardingProgress,
+  saveOnboardingProgress,
+} from '../services/onboardingProgress'
 import {
   mapConversation,
   mapHistoryMessage,
@@ -84,6 +90,8 @@ export const useAppStore = defineStore('app', () => {
   const leadListError = ref('')
   const leadDetailError = ref('')
   const loadingAppointments = ref(false)
+  const onboardingProgress = ref(createOnboardingProgress(''))
+  const onboardingLoaded = ref(false)
   /** EventSource for the live lead feed; closed on sign-out. */
   let leadStream = null
   let leadListRequestId = 0
@@ -147,6 +155,90 @@ export const useAppStore = defineStore('app', () => {
     if (agentId.value) localStorage.setItem(STORAGE.agentId, agentId.value)
     if (agentName.value)
       localStorage.setItem(STORAGE.agentName, agentName.value)
+  }
+
+  function loadOnboardingProgress() {
+    const activeBusinessId = businessId.value
+    onboardingProgress.value = activeBusinessId
+      ? readOnboardingProgress(activeBusinessId)
+      : createOnboardingProgress('')
+    onboardingLoaded.value = Boolean(activeBusinessId)
+    return onboardingProgress.value
+  }
+
+  function persistOnboardingProgress(next) {
+    if (
+      !businessId.value ||
+      next?.businessId !== businessId.value ||
+      onboardingProgress.value.businessId !== businessId.value
+    )
+      return null
+    const saved = saveOnboardingProgress(next)
+    if (!saved || saved.businessId !== businessId.value) return null
+    onboardingProgress.value = saved
+    onboardingLoaded.value = true
+    return saved
+  }
+
+  function setOnboardingStep(step) {
+    return persistOnboardingProgress({
+      ...onboardingProgress.value,
+      currentStep: step,
+    })
+  }
+
+  function setOnboardingStepStatus(step, status) {
+    const numericStep = Number(step)
+    const keys = {
+      completed: 'completedSteps',
+      skipped: 'skippedSteps',
+      blocked: 'blockedSteps',
+    }
+    const targetKey = keys[status]
+    if (!targetKey) return null
+    const next = {
+      ...onboardingProgress.value,
+      completedSteps: onboardingProgress.value.completedSteps.filter(
+        (item) => item !== numericStep,
+      ),
+      skippedSteps: onboardingProgress.value.skippedSteps.filter(
+        (item) => item !== numericStep,
+      ),
+      blockedSteps: onboardingProgress.value.blockedSteps.filter(
+        (item) => item !== numericStep,
+      ),
+    }
+    next[targetKey] = [...next[targetKey], numericStep]
+    return persistOnboardingProgress(next)
+  }
+
+  function markOnboardingStepComplete(step) {
+    return setOnboardingStepStatus(step, 'completed')
+  }
+
+  function markOnboardingStepBlocked(step) {
+    return setOnboardingStepStatus(step, 'blocked')
+  }
+
+  function skipOnboardingStep(step) {
+    return setOnboardingStepStatus(step, 'skipped')
+  }
+
+  function finishOnboardingLocally() {
+    return persistOnboardingProgress({
+      ...onboardingProgress.value,
+      currentStep: 6,
+      locallyFinished: true,
+    })
+  }
+
+  function resetOnboardingProgress() {
+    const activeBusinessId = businessId.value
+    if (!activeBusinessId) return null
+    removeOnboardingProgress(activeBusinessId)
+    onboardingProgress.value = createOnboardingProgress(activeBusinessId)
+    onboardingLoaded.value = true
+    return onboardingProgress.value
   }
 
   function upsertConversation(summaryOrConversation) {
@@ -549,6 +641,8 @@ export const useAppStore = defineStore('app', () => {
     savingChatbotConfig.value = false
     localStorage.removeItem(STORAGE.chatbot)
     appointments.value = []
+    onboardingProgress.value = createOnboardingProgress('')
+    onboardingLoaded.value = false
   }
 
   function setInboxView(view) {
@@ -1084,18 +1178,10 @@ export const useAppStore = defineStore('app', () => {
     if (activeChatbotConfigMutations.has(mutationKey)) {
       throw new Error('Chatbot settings are already being saved')
     }
-    const previousCache = localStorage.getItem(STORAGE.chatbot)
-    const optimisticConfig = {
-      ...chatbotConfig.value,
-      chatbotEnabled: Boolean(enabled),
-    }
-    localStorage.setItem(STORAGE.chatbot, String(Boolean(enabled)))
     return patchChatbotConfig(
       { chatbotEnabled: Boolean(enabled) },
       {
         successMessage: `Chatbot ${enabled ? 'enabled' : 'disabled'}`,
-        optimisticConfig,
-        previousCache,
       },
     )
   }
@@ -1167,7 +1253,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== flowSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return null
+      )
+        return null
       if (!Array.isArray(result?.templates) || !Array.isArray(result?.stored)) {
         throw new Error('Gateway returned an invalid template list response')
       }
@@ -1184,7 +1271,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== flowSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return null
+      )
+        return null
       templateError.value = error.message || 'Failed to load templates'
       throw error
     } finally {
@@ -1193,7 +1281,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion === flowSessionVersion &&
         businessId.value === requestBusinessId &&
         authenticated.value
-      ) loadingTemplates.value = false
+      )
+        loadingTemplates.value = false
     }
   }
 
@@ -1213,7 +1302,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== flowSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return null
+      )
+        return null
       if (!Array.isArray(result?.flows)) {
         throw new Error('Gateway returned an invalid flow list response')
       }
@@ -1228,7 +1318,8 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion !== flowSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return null
+      )
+        return null
       flowError.value = error.message || 'Failed to load attached flows'
       throw error
     } finally {
@@ -1237,18 +1328,25 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion === flowSessionVersion &&
         businessId.value === requestBusinessId &&
         authenticated.value
-      ) loadingFlows.value = false
+      )
+        loadingFlows.value = false
     }
   }
 
   async function attachConversationTemplate(template) {
-    if (!authenticated.value || !businessId.value) throw new Error('No active business session')
+    if (!authenticated.value || !businessId.value)
+      throw new Error('No active business session')
     const sessionVersion = flowSessionVersion
     const requestBusinessId = businessId.value
     const sector = String(template?.sector || '')
     const mutationKey = `${sessionVersion}:attach:${sector}`
-    if (activeFlowMutations.has(mutationKey)) throw new Error('This template is already being attached')
-    if (businessFlows.value.some((flow) => flow.sector.toLowerCase() === sector.toLowerCase())) {
+    if (activeFlowMutations.has(mutationKey))
+      throw new Error('This template is already being attached')
+    if (
+      businessFlows.value.some(
+        (flow) => flow.sector.toLowerCase() === sector.toLowerCase(),
+      )
+    ) {
       throw new Error('This template is already attached')
     }
     activeFlowMutations.add(mutationKey)
@@ -1257,20 +1355,28 @@ export const useAppStore = defineStore('app', () => {
       const payload = { sector }
       if (agentId.value) payload.created_by = agentId.value
       const result = await gatewayApi.attachTemplate(requestBusinessId, payload)
-      if (!result?.flow?.id) throw new Error('Gateway returned an invalid attached flow response')
+      if (!result?.flow?.id)
+        throw new Error('Gateway returned an invalid attached flow response')
       const created = mapConversationFlow(result.flow)
       if (
         sessionVersion !== flowSessionVersion ||
         businessId.value !== requestBusinessId ||
         !authenticated.value
-      ) return created
+      )
+        return null
+      if (created.businessId && created.businessId !== requestBusinessId)
+        return null
       flowListRequestId += 1
       loadingFlows.value = false
       businessFlows.value.push(created)
       notify(`${created.name || 'Conversation template'} attached`)
       return created
     } catch (error) {
-      if (sessionVersion === flowSessionVersion && businessId.value === requestBusinessId && authenticated.value) {
+      if (
+        sessionVersion === flowSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) {
         flowError.value = error.message || 'Template could not be attached'
       }
       throw error
@@ -1280,31 +1386,52 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function updateBusinessFlow(flowId, changes) {
-    if (!authenticated.value || !businessId.value) throw new Error('No active business session')
+    if (!authenticated.value || !businessId.value)
+      throw new Error('No active business session')
     const sessionVersion = flowSessionVersion
     const requestBusinessId = businessId.value
     const mutationKey = `${sessionVersion}:update:${flowId}`
-    if (activeFlowMutations.has(mutationKey)) throw new Error('This flow is already being updated')
+    if (activeFlowMutations.has(mutationKey))
+      throw new Error('This flow is already being updated')
     const index = businessFlows.value.findIndex((flow) => flow.id === flowId)
     if (index < 0) throw new Error('Flow not found')
     activeFlowMutations.add(mutationKey)
     const previous = { ...businessFlows.value[index] }
-    businessFlows.value[index] = { ...previous, isActive: Boolean(changes.isActive) }
+    businessFlows.value[index] = {
+      ...previous,
+      isActive: Boolean(changes.isActive),
+    }
     flowError.value = ''
     try {
-      const result = await gatewayApi.updateFlow(flowId, { is_active: Boolean(changes.isActive) })
-      if (!result?.flow?.id) throw new Error('Gateway returned an invalid flow response')
+      const result = await gatewayApi.updateFlow(flowId, {
+        is_active: Boolean(changes.isActive),
+      })
+      if (!result?.flow?.id)
+        throw new Error('Gateway returned an invalid flow response')
       const updated = mapConversationFlow(result.flow)
-      if (sessionVersion !== flowSessionVersion || businessId.value !== requestBusinessId || !authenticated.value) return updated
+      if (
+        sessionVersion !== flowSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      )
+        return updated
       flowListRequestId += 1
       loadingFlows.value = false
-      const currentIndex = businessFlows.value.findIndex((flow) => flow.id === flowId)
+      const currentIndex = businessFlows.value.findIndex(
+        (flow) => flow.id === flowId,
+      )
       if (currentIndex >= 0) businessFlows.value[currentIndex] = updated
       notify(`Flow ${updated.isActive ? 'enabled' : 'disabled'}`)
       return updated
     } catch (error) {
-      if (sessionVersion === flowSessionVersion && businessId.value === requestBusinessId && authenticated.value) {
-        const currentIndex = businessFlows.value.findIndex((flow) => flow.id === flowId)
+      if (
+        sessionVersion === flowSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) {
+        const currentIndex = businessFlows.value.findIndex(
+          (flow) => flow.id === flowId,
+        )
         if (currentIndex >= 0) businessFlows.value[currentIndex] = previous
         flowError.value = error.message || 'Flow could not be updated'
       }
@@ -1315,23 +1442,37 @@ export const useAppStore = defineStore('app', () => {
   }
 
   async function deleteBusinessFlow(flowId) {
-    if (!authenticated.value || !businessId.value) throw new Error('No active business session')
+    if (!authenticated.value || !businessId.value)
+      throw new Error('No active business session')
     const sessionVersion = flowSessionVersion
     const requestBusinessId = businessId.value
     const mutationKey = `${sessionVersion}:delete:${flowId}`
-    if (activeFlowMutations.has(mutationKey)) throw new Error('This flow is already being deleted')
+    if (activeFlowMutations.has(mutationKey))
+      throw new Error('This flow is already being deleted')
     activeFlowMutations.add(mutationKey)
     flowError.value = ''
     try {
       const result = await gatewayApi.deleteFlow(flowId)
-      if (result?.success !== true) throw new Error('Gateway returned an invalid delete response')
-      if (sessionVersion !== flowSessionVersion || businessId.value !== requestBusinessId || !authenticated.value) return
+      if (result?.success !== true)
+        throw new Error('Gateway returned an invalid delete response')
+      if (
+        sessionVersion !== flowSessionVersion ||
+        businessId.value !== requestBusinessId ||
+        !authenticated.value
+      )
+        return
       flowListRequestId += 1
       loadingFlows.value = false
-      businessFlows.value = businessFlows.value.filter((flow) => flow.id !== flowId)
+      businessFlows.value = businessFlows.value.filter(
+        (flow) => flow.id !== flowId,
+      )
       notify('Conversation flow deleted')
     } catch (error) {
-      if (sessionVersion === flowSessionVersion && businessId.value === requestBusinessId && authenticated.value) {
+      if (
+        sessionVersion === flowSessionVersion &&
+        businessId.value === requestBusinessId &&
+        authenticated.value
+      ) {
         flowError.value = error.message || 'Flow could not be deleted'
       }
       throw error
@@ -1482,6 +1623,14 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  watch(
+    businessId,
+    () => {
+      loadOnboardingProgress()
+    },
+    { immediate: true, flush: 'sync' },
+  )
+
   // Auto-reconnect after page refresh when already signed in
   if (authenticated.value && businessId.value) {
     refreshConversations().finally(() => connectAgentChannel())
@@ -1526,6 +1675,8 @@ export const useAppStore = defineStore('app', () => {
     loadingAppointments,
     loadingFaqs,
     faqError,
+    onboardingProgress,
+    onboardingLoaded,
     notify,
     login,
     registerBusiness,
@@ -1560,6 +1711,13 @@ export const useAppStore = defineStore('app', () => {
     createFaq,
     updateFaq,
     deleteFaq,
+    loadOnboardingProgress,
+    setOnboardingStep,
+    markOnboardingStepComplete,
+    markOnboardingStepBlocked,
+    skipOnboardingStep,
+    finishOnboardingLocally,
+    resetOnboardingProgress,
     connectAgentChannel,
   }
 })

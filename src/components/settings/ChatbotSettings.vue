@@ -9,6 +9,9 @@ import { toChatbotConfigPatch } from '../../services/mappers'
 const MESSAGE_LIMIT = 1000
 const props = defineProps({
   businessName: { type: String, default: 'Your business' },
+  showTemplates: { type: Boolean, default: true },
+  compact: { type: Boolean, default: false },
+  showDraftsWhenUnavailable: { type: Boolean, default: false },
 })
 
 const store = useAppStore()
@@ -96,12 +99,14 @@ onMounted(loadConfig)
 </script>
 
 <template>
-  <section class="chatbot-settings" aria-labelledby="chatbot-settings-title">
+  <section
+    class="chatbot-settings"
+    :class="{ compact: props.compact }"
+    aria-labelledby="chatbot-settings-title"
+  >
     <header>
       <h2 id="chatbot-settings-title">Chatbot settings</h2>
-      <p>
-        Let Loop answer common questions and qualify leads automatically.
-      </p>
+      <p>Let Loop answer common questions and qualify leads automatically.</p>
     </header>
 
     <div v-if="!store.businessId" class="notice" role="alert">
@@ -119,7 +124,11 @@ onMounted(loadConfig)
       Loading chatbot settings…
     </div>
     <div
-      v-else-if="store.chatbotConfigError && !store.chatbotConfig.businessId"
+      v-else-if="
+        store.chatbotConfigError &&
+        !store.chatbotConfig.businessId &&
+        !props.showDraftsWhenUnavailable
+      "
       class="notice error"
       role="alert"
     >
@@ -130,12 +139,22 @@ onMounted(loadConfig)
     </div>
 
     <template v-else>
+      <div
+        v-if="store.chatbotConfigError && !store.chatbotConfig.businessId"
+        class="notice error"
+        role="alert"
+      >
+        <span>{{ store.chatbotConfigError }}</span>
+        <AppButton size="sm" variant="outline" @click="loadConfig">
+          Retry
+        </AppButton>
+      </div>
       <div class="toggle-row">
         <div>
           <b>Automatic replies</b>
           <small>
-            When automatic replies are off, new customer messages are handed
-            to a human agent instead of receiving chatbot replies.
+            When automatic replies are off, new customer messages are handed to
+            a human agent instead of receiving chatbot replies.
           </small>
         </div>
         <button
@@ -155,6 +174,9 @@ onMounted(loadConfig)
       <form @submit.prevent="saveMessages">
         <label class="field">
           Welcome message
+          <small v-if="props.showDraftsWhenUnavailable" class="draft-only">
+            Draft only — backend persistence is not available yet
+          </small>
           <textarea
             v-model="welcomeDraft"
             rows="4"
@@ -172,14 +194,22 @@ onMounted(loadConfig)
         </label>
 
         <div class="preview" aria-live="polite">
-          <span class="preview-label">Preview — unsaved changes are not active</span>
-          <span class="bot-label"><i><Sparkles :size="11" /></i>Loop Assistant</span>
+          <span class="preview-label">
+            Preview — unsaved changes are not active
+          </span>
+          <span class="bot-label">
+            <i><Sparkles :size="11" /></i>
+            Loop Assistant
+          </span>
           <p>{{ previewText }}</p>
           <small>{{ props.businessName || 'Your business' }}</small>
         </div>
 
         <label class="field">
           Escalation message
+          <small v-if="props.showDraftsWhenUnavailable" class="draft-only">
+            Draft only — backend persistence is not available yet
+          </small>
           <textarea
             v-model="escalationDraft"
             rows="4"
@@ -222,7 +252,7 @@ onMounted(loadConfig)
       </form>
     </template>
 
-    <TemplatePicker />
+    <TemplatePicker v-if="props.showTemplates" />
   </section>
 </template>
 
@@ -379,7 +409,9 @@ form {
   animation: spin 0.8s linear infinite;
 }
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 @media (max-width: 600px) {
   .toggle-row {

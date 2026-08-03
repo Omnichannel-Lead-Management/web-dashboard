@@ -73,11 +73,13 @@ describe('chatbot config store', () => {
     await expect(store.refreshChatbotConfig()).rejects.toThrow(
       'invalid chatbot config response',
     )
-    expect(store.chatbotConfigError).toContain('invalid chatbot config response')
+    expect(store.chatbotConfigError).toContain(
+      'invalid chatbot config response',
+    )
     expect(store.toast.type).toBe('error')
   })
 
-  test('toggle is optimistic, sends only false, then confirms after success', async () => {
+  test('toggle preserves confirmed state, sends only false, then applies success', async () => {
     store.chatbotConfig = {
       businessId: 'biz_1',
       chatbotEnabled: true,
@@ -94,18 +96,21 @@ describe('chatbot config store', () => {
     }
 
     const request = store.updateChatbotEnabled(false)
-    expect(store.chatbotConfig.chatbotEnabled).toBe(false)
-    expect(localStorage.getItem('loop-chatbot')).toBe('false')
+    expect(store.chatbotConfig.chatbotEnabled).toBe(true)
+    expect(localStorage.getItem('loop-chatbot')).toBe('true')
     expect(payload).toEqual({ chatbot_enabled: false })
     expect(store.toast).toBeNull()
     pending.resolve({ config: config({ chatbot_enabled: false }) })
     await request
 
     expect(store.chatbotConfig.chatbotEnabled).toBe(false)
-    expect(store.toast).toEqual({ message: 'Chatbot disabled', type: 'success' })
+    expect(store.toast).toEqual({
+      message: 'Chatbot disabled',
+      type: 'success',
+    })
   })
 
-  test('toggle failure rolls back UI and localStorage cache', async () => {
+  test('toggle failure leaves confirmed UI and localStorage cache unchanged', async () => {
     store.chatbotConfig = {
       businessId: 'biz_1',
       chatbotEnabled: true,
@@ -231,7 +236,9 @@ describe('chatbot config store', () => {
     const requestA = store.refreshChatbotConfig()
     store.businessId = 'biz_2'
     const requestB = store.refreshChatbotConfig()
-    newGet.resolve({ config: config({ business_id: 'biz_2', welcome_message: 'B' }) })
+    newGet.resolve({
+      config: config({ business_id: 'biz_2', welcome_message: 'B' }),
+    })
     await requestB
     oldGet.resolve({ config: config({ welcome_message: 'A' }) })
     await requestA

@@ -33,6 +33,10 @@ const routes = [
     component: () => import('../views/NewAppointmentView.vue'),
   },
   { path: '/analytics', component: () => import('../views/AnalyticsView.vue') },
+  {
+    path: '/onboarding',
+    component: () => import('../views/OnboardingView.vue'),
+  },
   { path: '/settings', component: () => import('../views/SettingsView.vue') },
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
