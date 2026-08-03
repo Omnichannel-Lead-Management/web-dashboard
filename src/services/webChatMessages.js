@@ -1,3 +1,5 @@
+import { normalizeRemoteImageUrl } from './imageAttachments'
+
 let messageSequence = 0
 
 function id(prefix = 'web') {
@@ -53,19 +55,25 @@ function displayMessage(frame) {
     }
   }
   if (frame.type === 'connected') return null
+  const imageUrl = normalizeRemoteImageUrl(
+    frame.url || frame.image_url || frame.imageUrl,
+  )
   const content = text(frame.text || frame.message || frame.response)
   const quickReplies = mapQuickReplies(
     frame.quick_replies || frame.quickReplies,
   )
-  if (!content && !quickReplies.length) return null
+  if (!content && !quickReplies.length && !imageUrl) return null
   return {
     id: id('received'),
     role: 'bot',
-    type:
-      frame.type === 'interactive' || quickReplies.length
+    type: imageUrl
+      ? 'image'
+      : frame.type === 'interactive' || quickReplies.length
         ? 'interactive'
         : 'text',
     text: content,
+    imageUrl,
+    imageAlt: content || 'Shared image',
     quickReplies,
     status: 'received',
     createdAt: Date.now(),
@@ -90,6 +98,8 @@ export function isRecognizedWebChatServerFrame(frame) {
   if (text(frame.session_id || frame.sessionId)) return true
   if (text(frame.error)) return true
   if (frame.type === 'error' && text(frame.message)) return true
+  if (normalizeRemoteImageUrl(frame.url || frame.image_url || frame.imageUrl))
+    return true
 
   if (Array.isArray(frame.messages)) {
     return frame.messages.some((message) => {
@@ -118,6 +128,28 @@ export function createOutgoingWebChatMessage(
     wireValue: text(wireValue) || normalizedText,
     quickReplies: [],
     status: 'sending',
+    createdAt: Date.now(),
+  }
+}
+
+export function createOutgoingWebChatImageMessage({
+  id: messageId,
+  caption = '',
+  previewUrl = '',
+  uploadedUrl = '',
+  attachmentId = '',
+} = {}) {
+  return {
+    id: messageId || id('customer-image'),
+    role: 'customer',
+    type: 'image',
+    text: text(caption),
+    imageUrl: normalizeRemoteImageUrl(uploadedUrl) || previewUrl,
+    imageAlt: text(caption) || 'Selected image',
+    attachmentId,
+    uploadedUrl: normalizeRemoteImageUrl(uploadedUrl),
+    quickReplies: [],
+    status: uploadedUrl ? 'sending' : 'uploading',
     createdAt: Date.now(),
   }
 }

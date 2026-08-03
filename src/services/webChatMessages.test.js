@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import {
   canSendWebChatQuickReply,
   createOutgoingWebChatMessage,
+  createOutgoingWebChatImageMessage,
   getWebChatMessageWireValue,
   isRecognizedWebChatServerFrame,
   mapQuickReplies,
@@ -54,6 +55,37 @@ describe('web chat message mapping', () => {
       mapWebChatServerFrame({ type: 'mystery', data: { safe: true } }).messages,
     ).toEqual([])
     expect(mapQuickReplies('bad')).toEqual([])
+  })
+
+  test('maps safe image frames and rejects unsafe image URLs', () => {
+    const source = {
+      type: 'image',
+      image_url: 'https://cdn.example.com/photo.jpg',
+      message: 'A photo',
+    }
+    const snapshot = structuredClone(source)
+    expect(mapWebChatServerFrame(source).messages[0]).toMatchObject({
+      type: 'image',
+      imageUrl: source.image_url,
+      text: 'A photo',
+    })
+    expect(source).toEqual(snapshot)
+    expect(
+      mapWebChatServerFrame({ type: 'image', url: 'data:image/png,x' })
+        .messages,
+    ).toEqual([])
+    expect(
+      createOutgoingWebChatImageMessage({
+        caption: ' Caption ',
+        previewUrl: 'blob:local-only',
+        attachmentId: 'a1',
+      }),
+    ).toMatchObject({
+      type: 'image',
+      text: 'Caption',
+      imageUrl: 'blob:local-only',
+      status: 'uploading',
+    })
   })
 
   test('recognizes only supported gateway protocol frames', () => {

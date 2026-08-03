@@ -193,6 +193,84 @@ describe('web chat socket', () => {
       language: 'en',
     })
   })
+  test('sends the verified image URL payload only while connected', () => {
+    const socket = createWebChatSocket({
+      enabled: true,
+      imagesEnabled: true,
+      WebSocketImpl: FakeWebSocket,
+    })
+    socket.connect()
+    expect(() =>
+      socket.sendImage({ url: 'https://cdn.example/a.jpg' }),
+    ).toThrow('not connected')
+    const ws = FakeWebSocket.instances[0]
+    ws.open()
+    expect(
+      socket.sendImage({
+        url: 'https://cdn.example/a.jpg',
+        message: ' Caption ',
+        sessionId: 'web_1',
+        firstName: 'Ana',
+        language: 'en',
+      }),
+    ).toBe(true)
+    expect(JSON.parse(ws.sent[0])).toEqual({
+      type: 'image',
+      url: 'https://cdn.example/a.jpg',
+      message: 'Caption',
+      session_id: 'web_1',
+      first_name: 'Ana',
+      language: 'en',
+    })
+    expect(
+      socket.sendImage({ url: 'http://localhost:8090/local.jpg' }),
+    ).toBe(true)
+    expect(JSON.parse(ws.sent[1])).toEqual({
+      type: 'image',
+      url: 'http://localhost:8090/local.jpg',
+    })
+  })
+  test('rejects unsafe image URLs at the socket boundary without sending', () => {
+    const socket = createWebChatSocket({
+      enabled: true,
+      imagesEnabled: true,
+      WebSocketImpl: FakeWebSocket,
+    })
+    socket.connect()
+    const ws = FakeWebSocket.instances[0]
+    ws.open()
+    const unsafeUrls = [
+      '',
+      '   ',
+      'blob:https://example.com/local',
+      'data:image/png;base64,x',
+      'file:///tmp/photo.jpg',
+      'javascript:alert(1)',
+      '//example.com/photo.jpg',
+      'java\nscript:alert(1)',
+      'http://example.com/photo.jpg',
+    ]
+    for (const url of unsafeUrls)
+      expect(() => socket.sendImage({ url })).toThrow(
+        'safe uploaded image URL',
+      )
+    expect(ws.sent).toHaveLength(0)
+
+    const input = {
+      url: 'https://cdn.example.com/photo.jpg',
+      message: ' Caption ',
+      sessionId: 'session-1',
+    }
+    const snapshot = { ...input }
+    expect(socket.sendImage(input)).toBe(true)
+    expect(input).toEqual(snapshot)
+    expect(JSON.parse(ws.sent[0])).toEqual({
+      type: 'image',
+      url: input.url,
+      message: 'Caption',
+      session_id: 'session-1',
+    })
+  })
   test('avoids duplicate sockets and explicit disconnect prevents reconnect', () => {
     const timers = []
     const socket = createWebChatSocket({

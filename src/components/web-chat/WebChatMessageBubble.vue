@@ -1,9 +1,29 @@
 <script setup>
+import { computed, ref, watch } from 'vue'
 const props = defineProps({
   message: { type: Object, required: true },
   quickRepliesDisabled: { type: Boolean, default: false },
 })
 const emit = defineEmits(['retry', 'quick-reply'])
+const failedImageUrl = ref('')
+const imageFailed = computed(
+  () =>
+    Boolean(props.message.imageUrl) &&
+    failedImageUrl.value === props.message.imageUrl,
+)
+
+watch(
+  () => props.message.imageUrl,
+  () => {
+    failedImageUrl.value = ''
+  },
+)
+
+function handleImageError(event) {
+  const failedUrl = event?.currentTarget?.dataset?.imageUrl || ''
+  if (!failedUrl || failedUrl !== props.message.imageUrl) return
+  failedImageUrl.value = failedUrl
+}
 
 function sendQuickReply(reply) {
   if (props.quickRepliesDisabled) return
@@ -13,6 +33,23 @@ function sendQuickReply(reply) {
 <template>
   <article class="message" :class="[message.role, message.type]">
     <small v-if="message.role === 'bot'" class="author">Loop Assistant</small>
+    <img
+      v-if="message.type === 'image' && message.imageUrl && !imageFailed"
+      :key="message.imageUrl"
+      class="message-image"
+      :src="message.imageUrl"
+      :data-image-url="message.imageUrl"
+      :alt="message.imageAlt || 'Shared image'"
+      loading="lazy"
+      @error="handleImageError"
+    />
+    <div
+      v-else-if="message.type === 'image' && imageFailed"
+      class="image-unavailable"
+      role="status"
+    >
+      Image unavailable
+    </div>
     <p v-if="message.text">{{ message.text }}</p>
     <div v-if="message.quickReplies?.length" class="replies">
       <button
@@ -27,11 +64,13 @@ function sendQuickReply(reply) {
     </div>
     <small v-if="message.role === 'customer'" class="status">
       {{
-        message.status === 'sending'
-          ? 'Sending…'
-          : message.status === 'failed'
-            ? 'Not sent'
-            : 'Sent'
+        message.status === 'uploading'
+          ? 'Uploading…'
+          : message.status === 'sending'
+            ? 'Sending…'
+            : message.status === 'failed'
+              ? 'Not sent'
+              : 'Sent'
       }}
     </small>
     <button
@@ -58,6 +97,20 @@ function sendQuickReply(reply) {
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+.message-image {
+  display: block;
+  width: min(320px, 100%);
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 14px;
+  background: #f1f2f6;
+}
+.image-unavailable {
+  padding: 24px;
+  border-radius: 12px;
+  color: var(--muted);
+  background: #f1f2f6;
 }
 .customer {
   align-self: flex-end;

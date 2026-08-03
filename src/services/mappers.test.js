@@ -1157,6 +1157,33 @@ describe('availability mapper and form helpers', () => {
 })
 
 describe('mapHistoryMessage media kind', () => {
+  test('maps only safe inbound image URLs from message metadata', () => {
+    expect(
+      mapHistoryMessage({
+        from: 'user',
+        text: 'Photo',
+        metadata: JSON.stringify({
+          type: 'image',
+          image_url: 'https://cdn.example.com/photo.jpg',
+        }),
+      }).imageUrl,
+    ).toBe('https://cdn.example.com/photo.jpg')
+    expect(
+      mapHistoryMessage({
+        from: 'user',
+        metadata: { type: 'image', image_url: 'data:image/png,x' },
+      }).imageUrl,
+    ).toBe('')
+    expect(
+      mapHistoryMessage({
+        from: 'user',
+        image_url: 'https://cdn.example.com/direct.jpg',
+      }),
+    ).toMatchObject({
+      kind: 'photo',
+      imageUrl: 'https://cdn.example.com/direct.jpg',
+    })
+  })
   test('a voice note is badged from the stored metadata', () => {
     const m = mapHistoryMessage({
       id: 1,

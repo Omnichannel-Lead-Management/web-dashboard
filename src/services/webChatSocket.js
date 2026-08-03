@@ -1,8 +1,15 @@
-import { GATEWAY_URL, gatewayWsUrl, webChatEnabled } from '../config'
+import {
+  GATEWAY_URL,
+  gatewayWsUrl,
+  imageAttachmentsEnabled,
+  webChatEnabled,
+} from '../config'
+import { normalizeRemoteImageUrl } from './imageAttachments'
 import { isRecognizedWebChatServerFrame } from './webChatMessages'
 
 export function createWebChatSocket({
   enabled = webChatEnabled,
+  imagesEnabled = imageAttachmentsEnabled,
   gatewayUrl = GATEWAY_URL,
   WebSocketImpl = globalThis.WebSocket,
   eventTarget = globalThis,
@@ -148,6 +155,30 @@ export function createWebChatSocket({
     return true
   }
 
+  function sendImage({
+    url,
+    message,
+    sessionId,
+    firstName,
+    lastName,
+    language,
+  } = {}) {
+    if (!imagesEnabled) throw new Error('Image attachments are not enabled')
+    if (!socket || socket.readyState !== WebSocketImpl.OPEN)
+      throw new Error('Web chat is not connected')
+    const safeUrl = normalizeRemoteImageUrl(url)
+    if (!safeUrl) throw new Error('A safe uploaded image URL is required')
+    const payload = { type: 'image', url: safeUrl }
+    const caption = String(message || '').trim()
+    if (caption) payload.message = caption
+    if (sessionId) payload.session_id = sessionId
+    if (firstName) payload.first_name = firstName
+    if (lastName) payload.last_name = lastName
+    if (language) payload.language = language
+    socket.send(JSON.stringify(payload))
+    return true
+  }
+
   function disconnect() {
     explicitlyClosed = true
     clearReconnect()
@@ -182,5 +213,12 @@ export function createWebChatSocket({
     eventTarget?.removeEventListener?.('online', handleOnline)
   }
 
-  return { connect, disconnect, destroy, sendText, getState: () => state }
+  return {
+    connect,
+    disconnect,
+    destroy,
+    sendText,
+    sendImage,
+    getState: () => state,
+  }
 }

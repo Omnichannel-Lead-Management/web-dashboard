@@ -3,6 +3,7 @@ import {
   businessProfileUpdateEnabled,
   explicitTrue,
   notificationCenterEnabled,
+  imageAttachmentsEnabled,
   webChatEnabled,
 } from './config.js'
 
@@ -60,5 +61,15 @@ describe('web chat capability', () => {
     ).text()
     expect(example).toContain('VITE_WEB_CHAT_ENABLED=false')
     expect(example).toContain('secure tenant binding')
+  })
+})
+
+describe('image attachment capability', () => {
+  test('missing flag defaults disabled and only exact true enables', () => {
+    expect(imageAttachmentsEnabled).toBe(false)
+    expect(explicitTrue(undefined)).toBe(false)
+    expect(explicitTrue('false')).toBe(false)
+    expect(explicitTrue('TRUE')).toBe(false)
+    expect(explicitTrue('true')).toBe(true)
   })
 })

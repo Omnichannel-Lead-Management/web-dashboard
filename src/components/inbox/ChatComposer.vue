@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { Send } from 'lucide-vue-next'
+import { ImagePlus, Send } from 'lucide-vue-next'
 
 const props = defineProps({
   disabled: { type: Boolean, default: false },
@@ -21,6 +21,15 @@ function submitMessage() {
 <template>
   <form class="composer-shell" @submit.prevent="submitMessage">
     <div class="composer">
+      <button
+        type="button"
+        class="attach"
+        disabled
+        aria-label="Attach image (requires agent media-send API)"
+        title="Image sending requires the agent media-send API"
+      >
+        <ImagePlus :size="17" />
+      </button>
       <textarea
         v-model="messageText"
         rows="1"
@@ -41,6 +50,9 @@ function submitMessage() {
         <Send :size="17" />
       </button>
     </div>
+    <p class="media-note">
+      Image replies require gateway agent media-send support.
+    </p>
   </form>
 </template>
 
@@ -60,6 +72,11 @@ function submitMessage() {
   background: #f7f8fb;
   border: 1px solid #e1e4ec;
   border-radius: 14px;
+}
+.media-note {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 10px;
 }
 textarea {
   flex: 1;
@@ -88,6 +105,11 @@ button {
 }
 button:disabled {
   background: #d5d8e2;
+}
+.attach {
+  color: var(--muted);
+  background: #fff;
+  border: 1px solid var(--border);
 }
 @media (max-width: 760px) {
   .composer-shell {

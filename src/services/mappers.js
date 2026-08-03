@@ -876,6 +876,33 @@ function mediaKind(metadata) {
       : null
 }
 
+function mediaImageUrl(metadata, fallback) {
+  let parsed = metadata
+  if (typeof metadata === 'string') {
+    try {
+      parsed = JSON.parse(metadata)
+    } catch {
+      return ''
+    }
+  }
+  const value =
+    parsed?.image_url ?? parsed?.imageUrl ?? parsed?.url ?? fallback ?? ''
+  if (typeof value !== 'string') return ''
+  const trimmed = value.trim()
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol === 'https:') return trimmed
+    if (
+      url.protocol === 'http:' &&
+      ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+    )
+      return trimmed
+  } catch {
+    return ''
+  }
+  return ''
+}
+
 export function mapHistoryMessage(entry) {
   const sender =
     entry.from === 'user'
@@ -884,11 +911,16 @@ export function mapHistoryMessage(entry) {
         ? 'agent'
         : 'bot'
 
+  const imageUrl = mediaImageUrl(
+    entry.metadata,
+    entry.image_url ?? entry.imageUrl,
+  )
   return {
     id: entry.id ?? `${entry.timestamp}-${entry.from}`,
     sender,
     text: entry.text,
-    kind: mediaKind(entry.metadata),
+    kind: mediaKind(entry.metadata) || (imageUrl ? 'photo' : null),
+    imageUrl,
     time: formatTime(entry.timestamp),
   }
 }

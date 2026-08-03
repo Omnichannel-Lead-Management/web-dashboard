@@ -5,9 +5,15 @@ import WebChatConnectionState from '../components/web-chat/WebChatConnectionStat
 import WebChatMessageList from '../components/web-chat/WebChatMessageList.vue'
 import WebChatShell from '../components/web-chat/WebChatShell.vue'
 import WebChatWelcome from '../components/web-chat/WebChatWelcome.vue'
-import { webChatEnabled } from '../config'
+import { imageAttachmentsEnabled, webChatEnabled } from '../config'
+import { uploadChatImage } from '../services/chatMediaUpload'
+import {
+  createImageAttachmentDraft,
+  revokeImageAttachmentPreview,
+} from '../services/imageAttachments'
 import {
   canSendWebChatQuickReply,
+  createOutgoingWebChatImageMessage,
   createOutgoingWebChatMessage,
   getWebChatMessageWireValue,
   mapWebChatServerFrame,
@@ -27,7 +33,9 @@ const messages = ref([])
 const draft = ref('')
 const processing = ref(false)
 const session = ref(loadWebChatSession())
+const attachment = ref(null)
 let socket = null
+let uploadController = null
 
 const canSend = computed(
   () => webChatEnabled && connectionState.value === 'connected',
@@ -40,6 +48,7 @@ function persistSession(next) {
 function makeSocket() {
   return createWebChatSocket({
     enabled: webChatEnabled,
+    imagesEnabled: imageAttachmentsEnabled,
     getSessionId: () => session.value.sessionId,
     onState: (state) => {
       connectionState.value = state
@@ -112,11 +121,129 @@ function sendCustomerMessage(
 }
 
 function sendDraft() {
-  sendCustomerMessage(draft.value, { clearDraft: true })
+  if (attachment.value) sendImageAttachment()
+  else sendCustomerMessage(draft.value, { clearDraft: true })
+}
+
+function removeAttachment() {
+  uploadController?.abort()
+  uploadController = null
+  const removed = attachment.value
+  if (removed) {
+    revokeImageAttachmentPreview(removed)
+    if (removed.messageId)
+      messages.value = messages.value.filter(
+        (message) =>
+          message.id !== removed.messageId || message.status === 'sent',
+      )
+  }
+  attachment.value = null
+}
+
+function selectImage(file) {
+  if (!imageAttachmentsEnabled || !canSend.value || processing.value) return
+  removeAttachment()
+  try {
+    attachment.value = createImageAttachmentDraft(file)
+  } catch (error) {
+    connectionError.value = error?.message || 'Image could not be selected'
+  }
+}
+
+async function sendImageAttachment(existingMessageId = '') {
+  const selected = attachment.value
+  if (
+    !selected ||
+    !imageAttachmentsEnabled ||
+    !canSend.value ||
+    processing.value
+  )
+    return false
+  const associatedMessageId = existingMessageId || selected.messageId
+  const outgoing = associatedMessageId
+    ? messages.value.find((item) => item.id === associatedMessageId)
+    : createOutgoingWebChatImageMessage({
+        caption: draft.value,
+        previewUrl: selected.previewUrl,
+        uploadedUrl: selected.uploadedUrl,
+        attachmentId: selected.id,
+      })
+  if (!outgoing) return false
+  const isNewMessage = !associatedMessageId
+  if (isNewMessage) {
+    messages.value.push(outgoing)
+    attachment.value = { ...selected, messageId: outgoing.id }
+  }
+  processing.value = true
+  try {
+    let uploadedUrl = selected.uploadedUrl
+    if (!uploadedUrl) {
+      attachment.value = {
+        ...attachment.value,
+        messageId: outgoing.id,
+        status: 'uploading',
+        error: '',
+      }
+      replaceMessage(outgoing.id, (item) => ({ ...item, status: 'uploading' }))
+      uploadController = new AbortController()
+      const uploaded = await uploadChatImage({
+        file: selected.file,
+        signal: uploadController.signal,
+      })
+      if (attachment.value?.id !== selected.id) return false
+      uploadedUrl = uploaded.url
+      attachment.value = {
+        ...attachment.value,
+        uploadedUrl,
+        status: 'sending',
+      }
+    }
+    replaceMessage(outgoing.id, (item) => ({
+      ...item,
+      imageUrl: uploadedUrl,
+      uploadedUrl,
+      status: 'sending',
+    }))
+    socket.sendImage({
+      url: uploadedUrl,
+      message: outgoing.text,
+      sessionId: session.value.sessionId,
+      firstName: session.value.firstName,
+      lastName: session.value.lastName,
+      language: session.value.language,
+    })
+    replaceMessage(outgoing.id, (item) => ({ ...item, status: 'sent' }))
+    if (attachment.value?.id === selected.id) {
+      revokeImageAttachmentPreview(attachment.value)
+      attachment.value = null
+      if (isNewMessage && draft.value.trim() === outgoing.text) draft.value = ''
+    }
+    return true
+  } catch (error) {
+    if (error?.name !== 'AbortError') {
+      const message = error?.message || 'Image could not be sent'
+      connectionError.value = message
+      if (attachment.value?.id === selected.id)
+        attachment.value = {
+          ...attachment.value,
+          status: 'failed',
+          error: message,
+        }
+      replaceMessage(outgoing.id, (item) => ({ ...item, status: 'failed' }))
+    }
+    return false
+  } finally {
+    uploadController = null
+    processing.value = false
+  }
 }
 
 function retryMessage(message) {
   if (!canSend.value || processing.value) return
+  if (message.type === 'image') {
+    sendImageAttachment(message.id)
+    return
+  }
   replaceMessage(message.id, (item) =>
     withWebChatMessageStatus(item, 'sending'),
   )
@@ -146,6 +273,7 @@ function sendQuickReply(reply) {
 }
 
 function startNewConversation() {
+  removeAttachment()
   socket?.destroy()
   socket = null
   clearWebChatSession()
@@ -159,6 +287,7 @@ function startNewConversation() {
 
 onMounted(connect)
 onUnmounted(() => {
+  removeAttachment()
   socket?.destroy()
   socket = null
 })
@@ -199,7 +328,13 @@ onUnmounted(() => {
         v-model="draft"
         :disabled="!canSend"
         :processing="processing"
+        :attachments-enabled="imageAttachmentsEnabled"
+        :attachment="attachment"
+        :attachment-disabled="!canSend || processing"
         @send="sendDraft"
+        @select-image="selectImage"
+        @remove-image="removeAttachment"
+        @retry-image="sendImageAttachment(attachment?.messageId)"
       />
     </WebChatShell>
   </main>

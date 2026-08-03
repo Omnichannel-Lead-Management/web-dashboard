@@ -8,6 +8,7 @@ import {
   MessageSquareText,
   Globe2,
   Bell,
+  Image,
 } from 'lucide-vue-next'
 
 defineProps({
@@ -25,6 +26,7 @@ const items = [
   ['whatsapp', 'WhatsApp', MessageCircleMore],
   ['webchat', 'Web chat', Globe2],
   ['notifications', 'Notification Centre', Bell],
+  ['images', 'Image attachments', Image],
   ['chatbot', 'Chatbot settings', Bot],
   ['faqs', 'FAQs & answers', MessageSquareText],
   ['profile', 'Business profile', Building2],
