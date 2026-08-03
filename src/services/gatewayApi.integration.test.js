@@ -6,6 +6,19 @@ import { describe, expect, test } from 'bun:test'
  * against a local mock fetch.
  */
 describe('gatewayApi integration (mock fetch)', () => {
+  test('agent queue uses the verified encoded business-scoped REST contract', async () => {
+    let captured
+    globalThis.fetch = async (url, options = {}) => {
+      captured = { url: String(url), options }
+      return Response.json({ success: true, queue: [] })
+    }
+    const { gatewayApi } = await import(`./gatewayApi.js?t=agent-queue-${Date.now()}`)
+    await gatewayApi.getAgentQueue('biz/a & b')
+    const url = new URL(captured.url)
+    expect(url.pathname).toBe('/api/agents/queue')
+    expect(url.searchParams.get('business_id')).toBe('biz/a & b')
+    expect(captured.options.method).toBeUndefined()
+  })
   test('notification methods use encoded business-scoped prepared contracts', async () => {
     const calls = []
     globalThis.fetch = async (url, options = {}) => {

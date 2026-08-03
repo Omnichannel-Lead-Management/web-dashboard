@@ -9,6 +9,7 @@ import {
   Globe2,
   Bell,
   Image,
+  Users,
 } from 'lucide-vue-next'
 
 defineProps({
@@ -27,6 +28,7 @@ const items = [
   ['webchat', 'Web chat', Globe2],
   ['notifications', 'Notification Centre', Bell],
   ['images', 'Image attachments', Image],
+  ['escalations', 'Escalation queue', Users],
   ['chatbot', 'Chatbot settings', Bot],
   ['faqs', 'FAQs & answers', MessageSquareText],
   ['profile', 'Business profile', Building2],

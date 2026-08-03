@@ -4,6 +4,7 @@ import {
   explicitTrue,
   notificationCenterEnabled,
   imageAttachmentsEnabled,
+  agentEscalationQueueEnabled,
   webChatEnabled,
 } from './config.js'
 
@@ -71,5 +72,14 @@ describe('image attachment capability', () => {
     expect(explicitTrue('false')).toBe(false)
     expect(explicitTrue('TRUE')).toBe(false)
     expect(explicitTrue('true')).toBe(true)
+  })
+})
+
+describe('agent escalation queue capability', () => {
+  test('missing defaults disabled and only exact true enables', () => {
+    expect(agentEscalationQueueEnabled).toBe(false)
+    expect(explicitTrue('false')).toBe(false)
+    expect(explicitTrue('true')).toBe(true)
+    expect(explicitTrue('TRUE')).toBe(false)
   })
 })

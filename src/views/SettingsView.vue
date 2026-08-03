@@ -12,6 +12,7 @@ import BusinessProfileSettings from '../components/settings/BusinessProfileSetti
 import WebChatSettings from '../components/settings/WebChatSettings.vue'
 import NotificationSettings from '../components/settings/NotificationSettings.vue'
 import ImageAttachmentSettings from '../components/settings/ImageAttachmentSettings.vue'
+import EscalationQueueSettings from '../components/settings/EscalationQueueSettings.vue'
 import AppButton from '../components/common/AppButton.vue'
 import { useAppStore } from '../stores/app'
 import { activeBusinessForTenant } from '../services/businessProfile'
@@ -140,6 +141,9 @@ function selectSection(sectionId) {
           </template>
           <template v-else-if="activeSection === 'images'">
             <ImageAttachmentSettings />
+          </template>
+          <template v-else-if="activeSection === 'escalations'">
+            <EscalationQueueSettings />
           </template>
           <template v-else-if="activeSection === 'chatbot'">
             <ChatbotSettings :business-name="store.businessName" />

@@ -9,9 +9,12 @@ const props = defineProps({
   selectedId: { type: String, default: '' },
   search: { type: String, default: '' },
   filter: { type: String, default: 'All' },
+  escalationEnabled: { type: Boolean, default: false },
 })
 const emit = defineEmits(['select', 'update:search', 'update:filter'])
-const filters = ['All', 'Unread', 'Escalated']
+const filters = computed(() =>
+  props.escalationEnabled ? ['All', 'Unread', 'Escalated'] : ['All', 'Unread'],
+)
 
 const filteredConversations = computed(() =>
   props.conversations.filter((conversation) => {
@@ -29,10 +32,14 @@ const filteredConversations = computed(() =>
   }),
 )
 const escalated = computed(() =>
-  filteredConversations.value.filter((conversation) => conversation.escalated),
+  props.escalationEnabled
+    ? filteredConversations.value.filter((conversation) => conversation.escalated)
+    : [],
 )
 const regular = computed(() =>
-  filteredConversations.value.filter((conversation) => !conversation.escalated),
+  props.escalationEnabled
+    ? filteredConversations.value.filter((conversation) => !conversation.escalated)
+    : filteredConversations.value,
 )
 </script>
 

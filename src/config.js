@@ -24,6 +24,10 @@ export const imageAttachmentsEnabled = explicitTrue(
   import.meta.env.VITE_IMAGE_ATTACHMENTS_ENABLED,
 )
 
+export const agentEscalationQueueEnabled = explicitTrue(
+  import.meta.env.VITE_AGENT_ESCALATION_QUEUE_ENABLED,
+)
+
 export function gatewayWsUrl(path = '/ws/agents', baseUrl = GATEWAY_URL) {
   const url = new URL(baseUrl)
   url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:'

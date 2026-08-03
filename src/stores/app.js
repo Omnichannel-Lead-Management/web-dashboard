@@ -4,7 +4,12 @@ import { gatewayApi } from '../services/gatewayApi'
 import { appointmentService } from '../services/appointmentService'
 import { leadService } from '../services/leadService'
 import { createAgentSocket } from '../services/agentSocket'
-import { notificationCenterEnabled } from '../config'
+import { agentEscalationQueueEnabled, notificationCenterEnabled } from '../config'
+import {
+  getEscalationOwnership,
+  mapEscalation,
+  mapEscalationQueue,
+} from '../services/escalations'
 import {
   getUnreadNotificationCount,
   mapNotification,
@@ -158,7 +163,23 @@ export const useAppStore = defineStore('app', () => {
   let notificationRefreshPromise = null
   let notificationActiveRefreshId = 0
   const notificationMutationPromises = new Map()
-  const agentId = ref(localStorage.getItem(STORAGE.agentId) || 'agent_demo')
+  const escalationQueueAvailable = ref(agentEscalationQueueEnabled)
+  const escalations = ref([])
+  const escalationsLoading = ref(false)
+  const escalationsRefreshing = ref(false)
+  const escalationsError = ref('')
+  const escalationsLoadedForBusinessId = ref('')
+  const escalationClaimPendingIds = ref([])
+  const escalationReleasePendingIds = ref([])
+  const escalationsLastUpdatedAt = ref(0)
+  let escalationSessionVersion = 0
+  let escalationRefreshId = 0
+  let escalationRefreshPromise = null
+  let escalationMutationVersion = 0
+  let escalationQueueRevision = 0
+  let agentSocketGeneration = 0
+  const escalationMutations = new Map()
+  const agentId = ref(localStorage.getItem(STORAGE.agentId) || '')
   const agentName = ref(localStorage.getItem(STORAGE.agentName) || 'Agent')
   const loadingInbox = ref(false)
 
@@ -171,6 +192,214 @@ export const useAppStore = defineStore('app', () => {
     toastTimer = setTimeout(() => {
       toast.value = null
     }, 3200)
+  }
+
+  function escalationRequestIsCurrent(version, requestBusinessId) {
+    return authenticated.value && version === escalationSessionVersion && requestBusinessId === businessId.value
+  }
+
+  function cancelPendingEscalationMutations(reason = 'session_reset') {
+    const cancellation = {
+      success: false,
+      cancelled: true,
+      reason,
+    }
+    const pending = [...escalationMutations.values()]
+    escalationMutations.clear()
+    escalationClaimPendingIds.value = []
+    escalationReleasePendingIds.value = []
+    for (const mutation of pending) {
+      clearTimeout(mutation.timer)
+      mutation.resolve(cancellation)
+    }
+  }
+
+  function clearEscalationState(reason = 'session_reset') {
+    escalationSessionVersion += 1
+    escalationRefreshId += 1
+    escalationRefreshPromise = null
+    escalationMutationVersion += 1
+    escalationQueueRevision += 1
+    cancelPendingEscalationMutations(reason)
+    escalations.value = []
+    escalationsLoading.value = false
+    escalationsRefreshing.value = false
+    escalationsError.value = ''
+    escalationsLoadedForBusinessId.value = ''
+    escalationClaimPendingIds.value = []
+    escalationReleasePendingIds.value = []
+    escalationsLastUpdatedAt.value = 0
+  }
+
+  function escalationQueuesMatch(left, right) {
+    return JSON.stringify(left) === JSON.stringify(right)
+  }
+
+  function applyEscalationSnapshot(
+    payload,
+    requestBusinessId = businessId.value,
+    { realtime = false } = {},
+  ) {
+    if (!escalationQueueAvailable.value || requestBusinessId !== businessId.value) return false
+    const mapped = mapEscalationQueue(payload).filter((item) => !item.businessId || item.businessId === requestBusinessId)
+    const next = mapped.map((item) => ({ ...item, businessId: requestBusinessId }))
+    const changed = !escalationQueuesMatch(escalations.value, next)
+    if (changed) {
+      escalations.value = next
+      if (realtime) escalationQueueRevision += 1
+    }
+    escalationsLoadedForBusinessId.value = requestBusinessId
+    if (changed) escalationsLastUpdatedAt.value = Date.now()
+    escalationsError.value = ''
+    return changed
+  }
+
+  function upsertEscalation(source, { realtime = false } = {}) {
+    const mapped = mapEscalation(source)
+    if (!mapped || (mapped.businessId && mapped.businessId !== businessId.value)) return null
+    const next = { ...mapped, businessId: businessId.value }
+    const existing = escalations.value.find((item) => item.id === next.id)
+    if (existing && escalationQueuesMatch(existing, next)) return existing
+    escalations.value = [...escalations.value.filter((item) => item.id !== next.id), next]
+    if (realtime) escalationQueueRevision += 1
+    escalationsLastUpdatedAt.value = Date.now()
+    return next
+  }
+
+  function removeEscalation(id, { realtime = false } = {}) {
+    if (!escalations.value.some((item) => item.id === id)) return false
+    escalations.value = escalations.value.filter((item) => item.id !== id)
+    if (realtime) escalationQueueRevision += 1
+    escalationsLastUpdatedAt.value = Date.now()
+    return true
+  }
+
+  function applyConfirmedEscalationRelease(id, releasedAt) {
+    const existing = escalations.value.find((item) => item.id === id)
+    const conversation = conversations.value.find((item) => item.id === id)
+    const alreadyQueued = existing?.status === 'queued' && !existing.claimedByAgentId
+    const confirmedReleaseTime =
+      (alreadyQueued && existing.releasedAt) || releasedAt || new Date().toISOString()
+
+    if (existing) {
+      upsertEscalation(
+        {
+          ...existing,
+          business_id: businessId.value,
+          escalation_status: 'queued',
+          escalation_tag: existing.tag,
+          escalation_summary: existing.summary,
+          escalation_requested_at: existing.requestedAt,
+          latest_message: existing.latestMessage,
+          updated_at: existing.latestMessageAt,
+          claimed_by_agent_id: '',
+          claimedByAgentId: '',
+          claimed_at: null,
+          claimedAt: null,
+          released_at: confirmedReleaseTime,
+          releasedAt: confirmedReleaseTime,
+        },
+        { realtime: true },
+      )
+    }
+
+    if (conversation) {
+      conversation.escalated = true
+      conversation.claimed = false
+      conversation.claimedByAgentId = ''
+      conversation.claimedByMe = false
+      conversation.claimedByOther = false
+      conversation.claimedAt = null
+      conversation.claimed_at = null
+      conversation.escalationStatus = 'queued'
+      conversation.escalation_status = 'queued'
+      conversation.releasedAt = confirmedReleaseTime
+      conversation.released_at = confirmedReleaseTime
+    }
+
+    return existing ? escalations.value.find((item) => item.id === id) : null
+  }
+
+  function escalationBusinessId(source) {
+    const value =
+      source?.business_id ??
+      source?.businessId ??
+      source?.chat?.business_id ??
+      source?.chat?.businessId
+    return typeof value === 'string' ? value.trim() : ''
+  }
+
+  function isCurrentEscalationBusiness(source) {
+    return Boolean(
+      authenticated.value &&
+      businessId.value &&
+      escalationBusinessId(source) === businessId.value,
+    )
+  }
+
+  function settleEscalationMutation(type, id, { value = null, error = '' } = {}) {
+    const key = `${type}:${id}`
+    const mutation = escalationMutations.get(key)
+    if (!mutation || !escalationRequestIsCurrent(mutation.version, mutation.businessId)) return false
+    clearTimeout(mutation.timer)
+    escalationMutations.delete(key)
+    if (type === 'claim') {
+      escalationClaimPendingIds.value = escalationClaimPendingIds.value.filter((item) => item !== id)
+    } else {
+      escalationReleasePendingIds.value = escalationReleasePendingIds.value.filter((item) => item !== id)
+    }
+    if (error) {
+      escalationsError.value = error
+      mutation.resolve(null)
+    } else {
+      escalationMutationVersion += 1
+      escalationsError.value = ''
+      mutation.resolve(value)
+    }
+    return true
+  }
+
+  function refreshEscalations() {
+    if (!escalationQueueAvailable.value || !authenticated.value || !businessId.value) return Promise.resolve(null)
+    if (escalationRefreshPromise) return escalationRefreshPromise
+    const version = escalationSessionVersion
+    const requestBusinessId = businessId.value
+    const requestId = ++escalationRefreshId
+    const mutationAtStart = escalationMutationVersion
+    const revisionAtStart = escalationQueueRevision
+    const hasData = escalationsLoadedForBusinessId.value === requestBusinessId
+    escalationsLoading.value = !hasData
+    escalationsRefreshing.value = hasData
+    escalationsError.value = ''
+    const request = gatewayApi.getAgentQueue(requestBusinessId)
+      .then((result) => {
+        if (result?.success !== true || !Array.isArray(result.queue)) throw new Error('Gateway returned an invalid escalation queue')
+        if (
+          !escalationRequestIsCurrent(version, requestBusinessId) ||
+          requestId !== escalationRefreshId ||
+          mutationAtStart !== escalationMutationVersion ||
+          revisionAtStart !== escalationQueueRevision
+        ) return null
+        applyEscalationSnapshot(result.queue, requestBusinessId)
+        return escalations.value
+      })
+      .catch((error) => {
+        if (
+          escalationRequestIsCurrent(version, requestBusinessId) &&
+          requestId === escalationRefreshId &&
+          revisionAtStart === escalationQueueRevision
+        ) escalationsError.value = error.message || 'Escalation queue could not be loaded'
+        throw error
+      })
+      .finally(() => {
+        if (escalationRefreshPromise === request) escalationRefreshPromise = null
+        if (escalationRequestIsCurrent(version, requestBusinessId) && requestId === escalationRefreshId) {
+          escalationsLoading.value = false
+          escalationsRefreshing.value = false
+        }
+      })
+    escalationRefreshPromise = request
+    return request
   }
 
   function persistSession() {
@@ -353,6 +582,20 @@ export const useAppStore = defineStore('app', () => {
   function handleSocketEvent(event) {
     if (!event?.type) return
 
+    const escalationEventTypes = new Set([
+      'queue_snapshot',
+      'chat_queued',
+      'chat_claimed',
+      'chat_released',
+      'de_escalated',
+      'claim_result',
+      'release_result',
+    ])
+    if (
+      escalationEventTypes.has(event.type) &&
+      (!escalationQueueAvailable.value || !authenticated.value)
+    ) return
+
     if (event.type === 'connected') {
       connectionStatus.value = 'connected'
       socketApi?.send({
@@ -365,9 +608,14 @@ export const useAppStore = defineStore('app', () => {
     }
 
     if (event.type === 'registered') {
+      if (typeof event.agent_id === 'string' && event.agent_id.trim()) {
+        agentId.value = event.agent_id.trim()
+        persistSession()
+      }
       connectionStatus.value = 'online'
       notify('Agent channel connected')
       refreshConversations()
+      if (escalationQueueAvailable.value) socketApi?.send({ type: 'get_queue' })
       return
     }
 
@@ -378,7 +626,10 @@ export const useAppStore = defineStore('app', () => {
     }
 
     if (event.type === 'queue_snapshot' && Array.isArray(event.chats)) {
-      for (const chat of event.chats) {
+      const currentBusinessChats = event.chats.filter(isCurrentEscalationBusiness)
+      if (event.chats.length && !currentBusinessChats.length) return
+      applyEscalationSnapshot(currentBusinessChats, businessId.value, { realtime: true })
+      for (const chat of currentBusinessChats) {
         upsertConversation({
           messenger_id: chat.messenger_id,
           platform: chat.platform,
@@ -386,6 +637,9 @@ export const useAppStore = defineStore('app', () => {
           is_escalated: true,
           escalation_status: chat.escalation_status,
           claimed_by_agent_id: chat.claimed_by_agent_id,
+          escalation_requested_at: chat.escalation_requested_at,
+          escalation_tag: chat.escalation_tag,
+          escalation_summary: chat.escalation_summary,
           last_message: chat.escalation_summary
             ? {
                 text: chat.escalation_summary,
@@ -400,6 +654,8 @@ export const useAppStore = defineStore('app', () => {
     }
 
     if (event.type === 'chat_queued' && event.chat) {
+      if (!isCurrentEscalationBusiness(event.chat)) return
+      upsertEscalation(event.chat, { realtime: true })
       upsertConversation({
         messenger_id: event.chat.messenger_id,
         platform: event.chat.platform,
@@ -407,6 +663,9 @@ export const useAppStore = defineStore('app', () => {
         is_escalated: true,
         escalation_status: event.chat.escalation_status,
         claimed_by_agent_id: event.chat.claimed_by_agent_id,
+        escalation_requested_at: event.chat.escalation_requested_at,
+        escalation_tag: event.chat.escalation_tag,
+        escalation_summary: event.chat.escalation_summary,
         last_message: {
           text: event.chat.escalation_summary || 'Waiting for an agent',
           is_from_user: true,
@@ -419,23 +678,50 @@ export const useAppStore = defineStore('app', () => {
     }
 
     if (event.type === 'chat_claimed') {
+      if (!isCurrentEscalationBusiness(event)) return
       const id = conversationId(event.platform, event.messenger_id)
       const conversation = conversations.value.find((item) => item.id === id)
       if (conversation) {
-        conversation.claimed = true
+        conversation.claimed = event.claimed_by_agent_id === agentId.value
+        conversation.claimedByAgentId = event.claimed_by_agent_id || ''
         conversation.escalated = true
         conversation.unread = false
+      }
+      const existing = escalations.value.find((item) => item.id === id)
+      if (existing) upsertEscalation({ ...existing, business_id: businessId.value, escalation_status: 'claimed', claimed_by_agent_id: event.claimed_by_agent_id }, { realtime: true })
+      if (event.claimed_by_agent_id === agentId.value) {
+        settleEscalationMutation('claim', id, {
+          value: escalations.value.find((item) => item.id === id) || null,
+        })
       }
       return
     }
 
-    if (event.type === 'chat_released' || event.type === 'de_escalated') {
+    if (event.type === 'chat_released') {
+      if (!isCurrentEscalationBusiness(event)) return
+      const id = conversationId(event.platform, event.messenger_id)
+      const mutation = escalationMutations.get(`release:${id}`)
+      applyConfirmedEscalationRelease(
+        id,
+        event.released_at ?? event.releasedAt ?? mutation?.startedAt,
+      )
+      if (event.released_by_agent_id === agentId.value) {
+        settleEscalationMutation('release', id, { value: true })
+      }
+      return
+    }
+
+    if (event.type === 'de_escalated') {
+      if (!isCurrentEscalationBusiness(event)) return
       const id = conversationId(event.platform, event.messenger_id)
       const conversation = conversations.value.find((item) => item.id === id)
       if (conversation) {
+        conversation.escalated = false
         conversation.claimed = false
-        if (event.type === 'de_escalated') conversation.escalated = false
+        conversation.claimedByAgentId = ''
+        conversation.claimedByOther = false
       }
+      removeEscalation(id, { realtime: true })
       return
     }
 
@@ -486,7 +772,12 @@ export const useAppStore = defineStore('app', () => {
     }
 
     if (event.type === 'claim_result') {
+      const mutationKey = conversationId(event.platform, event.messenger_id)
+      const mutation = escalationMutations.get(`claim:${mutationKey}`)
+      if (!mutation || !escalationRequestIsCurrent(mutation.version, mutation.businessId)) return
       if (!event.success) {
+        const error = event.error || 'Could not claim conversation'
+        settleEscalationMutation('claim', mutationKey, { error })
         notify(event.error || 'Could not claim chat', 'error')
         return
       }
@@ -497,6 +788,11 @@ export const useAppStore = defineStore('app', () => {
         conversation.escalated = true
         conversation.unread = false
       }
+      const existing = escalations.value.find((item) => item.id === id)
+      if (existing) upsertEscalation({ ...existing, business_id: mutation.businessId, escalation_status: 'claimed', claimed_by_agent_id: agentId.value, claimed_at: new Date().toISOString() }, { realtime: true })
+      settleEscalationMutation('claim', mutationKey, {
+        value: escalations.value.find((item) => item.id === id) || null,
+      })
       if (Array.isArray(event.history)) {
         messages.value[id] = event.history.map(mapHistoryMessage)
       }
@@ -505,13 +801,18 @@ export const useAppStore = defineStore('app', () => {
     }
 
     if (event.type === 'release_result') {
+      const mutationKey = conversationId(event.platform, event.messenger_id)
+      const mutation = escalationMutations.get(`release:${mutationKey}`)
+      if (!mutation || !escalationRequestIsCurrent(mutation.version, mutation.businessId)) return
       if (!event.success) {
+        const error = event.error || 'Could not release conversation'
+        settleEscalationMutation('release', mutationKey, { error })
         notify(event.error || 'Could not release chat', 'error')
         return
       }
       const id = conversationId(event.platform, event.messenger_id)
-      const conversation = conversations.value.find((item) => item.id === id)
-      if (conversation) conversation.claimed = false
+      applyConfirmedEscalationRelease(id, mutation.startedAt)
+      settleEscalationMutation('release', mutationKey, { value: true })
       notify('Chat released back to the queue')
       return
     }
@@ -526,25 +827,50 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  function applyEscalationEvent(event) {
+    const allowed = new Set([
+      'queue_snapshot',
+      'chat_queued',
+      'chat_claimed',
+      'chat_released',
+      'de_escalated',
+      'claim_result',
+      'release_result',
+    ])
+    if (!allowed.has(event?.type)) return false
+    handleSocketEvent(event)
+    return true
+  }
+
   function connectAgentChannel() {
     if (!authenticated.value || !businessId.value) return
     socketApi?.close()
+    const generation = ++agentSocketGeneration
     connectionStatus.value = 'connecting'
     socketApi = createAgentSocket({
-      onEvent: handleSocketEvent,
+      onEvent: (event) => {
+        if (generation === agentSocketGeneration) handleSocketEvent(event)
+      },
       onOpen: () => {
-        connectionStatus.value = 'connected'
+        if (generation === agentSocketGeneration) connectionStatus.value = 'connected'
       },
       onClose: () => {
-        connectionStatus.value = 'offline'
+        if (generation === agentSocketGeneration) connectionStatus.value = 'offline'
       },
       onError: () => {
-        connectionStatus.value = 'error'
+        if (generation === agentSocketGeneration) connectionStatus.value = 'error'
+      },
+      onStateChange: (state) => {
+        if (generation !== agentSocketGeneration) return
+        if (state === 'connected') connectionStatus.value = 'online'
+        else if (state === 'offline' || state === 'closed') connectionStatus.value = 'offline'
+        else connectionStatus.value = state
       },
     })
   }
 
   function disconnectAgentChannel() {
+    agentSocketGeneration += 1
     socketApi?.close()
     socketApi = null
     connectionStatus.value = 'offline'
@@ -656,6 +982,7 @@ export const useAppStore = defineStore('app', () => {
     businessProfileSaving.value = false
     businessProfileError.value = ''
     clearNotificationState()
+    clearEscalationState('logout')
     faqs.value = []
     faqError.value = ''
     loadingFaqs.value = false
@@ -680,27 +1007,84 @@ export const useAppStore = defineStore('app', () => {
     localStorage.setItem(STORAGE.inboxView, view)
   }
 
-  function claim(id) {
+  function claimEscalation(id) {
+    if (!escalationQueueAvailable.value || !authenticated.value || !businessId.value || !agentId.value || connectionStatus.value !== 'online') return Promise.resolve(null)
+    const escalation = escalations.value.find((item) => item.id === id)
+    if (!escalation || getEscalationOwnership(escalation, agentId.value) !== 'queued') return Promise.resolve(null)
+    const key = `claim:${id}`
+    if (escalationMutations.has(key)) return escalationMutations.get(key).promise
     const { platform, messenger_id } = parseConversationId(id)
+    if (!platform || !messenger_id) return Promise.resolve(null)
+    const version = escalationSessionVersion
+    const requestBusinessId = businessId.value
+    let resolve
+    const promise = new Promise((done) => { resolve = done })
+    const timer = setTimeout(() => {
+      const active = escalationMutations.get(key)
+      if (!active || active.promise !== promise) return
+      escalationMutations.delete(key)
+      escalationClaimPendingIds.value = escalationClaimPendingIds.value.filter((item) => item !== id)
+      if (escalationRequestIsCurrent(version, requestBusinessId)) escalationsError.value = 'Claim confirmation timed out'
+      resolve(null)
+    }, 12000)
+    escalationMutations.set(key, { promise, resolve, reject: resolve, timer, version, businessId: requestBusinessId, startedAt: new Date().toISOString() })
+    escalationClaimPendingIds.value = [...escalationClaimPendingIds.value, id]
     const sent = socketApi?.send({
       type: 'claim_chat',
       platform,
       messenger_id,
-      business_id: businessId.value,
+      business_id: requestBusinessId,
     })
-    if (!sent) notify('Not connected to gateway', 'error')
+    if (!sent) {
+      clearTimeout(timer)
+      escalationMutations.delete(key)
+      escalationClaimPendingIds.value = escalationClaimPendingIds.value.filter((item) => item !== id)
+      escalationsError.value = 'Not connected to gateway'
+      resolve(null)
+    }
+    return promise
   }
 
-  function release(id) {
+  function releaseEscalation(id) {
+    if (!escalationQueueAvailable.value || !authenticated.value || !businessId.value || !agentId.value || connectionStatus.value !== 'online') return Promise.resolve(null)
+    const escalation = escalations.value.find((item) => item.id === id)
+    if (!escalation || getEscalationOwnership(escalation, agentId.value) !== 'mine') return Promise.resolve(null)
+    const key = `release:${id}`
+    if (escalationMutations.has(key)) return escalationMutations.get(key).promise
     const { platform, messenger_id } = parseConversationId(id)
+    if (!platform || !messenger_id) return Promise.resolve(null)
+    const version = escalationSessionVersion
+    const requestBusinessId = businessId.value
+    let resolve
+    const promise = new Promise((done) => { resolve = done })
+    const timer = setTimeout(() => {
+      const active = escalationMutations.get(key)
+      if (!active || active.promise !== promise) return
+      escalationMutations.delete(key)
+      escalationReleasePendingIds.value = escalationReleasePendingIds.value.filter((item) => item !== id)
+      if (escalationRequestIsCurrent(version, requestBusinessId)) escalationsError.value = 'Release confirmation timed out'
+      resolve(null)
+    }, 12000)
+    escalationMutations.set(key, { promise, resolve, reject: resolve, timer, version, businessId: requestBusinessId, startedAt: new Date().toISOString() })
+    escalationReleasePendingIds.value = [...escalationReleasePendingIds.value, id]
     const sent = socketApi?.send({
       type: 'release_chat',
       platform,
       messenger_id,
-      business_id: businessId.value,
+      business_id: requestBusinessId,
     })
-    if (!sent) notify('Not connected to gateway', 'error')
+    if (!sent) {
+      clearTimeout(timer)
+      escalationMutations.delete(key)
+      escalationReleasePendingIds.value = escalationReleasePendingIds.value.filter((item) => item !== id)
+      escalationsError.value = 'Not connected to gateway'
+      resolve(null)
+    }
+    return promise
   }
+
+  const claim = claimEscalation
+  const release = releaseEscalation
 
   function sendMessage(id, text) {
     const optimistic = {
@@ -1932,12 +2316,17 @@ export const useAppStore = defineStore('app', () => {
 
   watch(
     businessId,
-    () => {
+    (nextBusinessId, previousBusinessId) => {
       businessSessionVersion += 1
       businessProfileSaving.value = false
       businessProfileError.value = ''
       clearNotificationState()
+      clearEscalationState(previousBusinessId && nextBusinessId !== previousBusinessId ? 'business_changed' : 'session_reset')
       loadOnboardingProgress()
+      if (previousBusinessId && nextBusinessId !== previousBusinessId && authenticated.value) {
+        disconnectAgentChannel()
+        if (nextBusinessId) connectAgentChannel()
+      }
     },
     { immediate: true, flush: 'sync' },
   )
@@ -1998,6 +2387,15 @@ export const useAppStore = defineStore('app', () => {
     notificationMutationIds,
     notificationsLastUpdatedAt,
     notificationUnreadCount,
+    escalationQueueAvailable,
+    escalations,
+    escalationsLoading,
+    escalationsRefreshing,
+    escalationsError,
+    escalationsLoadedForBusinessId,
+    escalationClaimPendingIds,
+    escalationReleasePendingIds,
+    escalationsLastUpdatedAt,
     notify,
     login,
     registerBusiness,
@@ -2044,6 +2442,12 @@ export const useAppStore = defineStore('app', () => {
     markNotificationRead,
     markAllNotificationsRead,
     clearNotificationState,
+    refreshEscalations,
+    claimEscalation,
+    releaseEscalation,
+    applyEscalationSnapshot,
+    applyEscalationEvent,
+    clearEscalationState,
     connectAgentChannel,
   }
 })
