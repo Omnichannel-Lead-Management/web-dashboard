@@ -29,7 +29,11 @@ export function createAgentSocket({
   }
 
   function scheduleReconnect() {
-    if (!shouldReconnect || !isOnline() || reconnectAttempts >= maxReconnectAttempts) {
+    if (
+      !shouldReconnect ||
+      !isOnline() ||
+      reconnectAttempts >= maxReconnectAttempts
+    ) {
       if (!isOnline()) setState('offline')
       else if (shouldReconnect) setState('error')
       return false
@@ -57,7 +61,10 @@ export function createAgentSocket({
     if (
       !shouldReconnect ||
       !isOnline() ||
-      (socket && [WebSocketImpl.CONNECTING ?? 0, WebSocketImpl.OPEN ?? 1].includes(socket.readyState))
+      (socket &&
+        [WebSocketImpl.CONNECTING ?? 0, WebSocketImpl.OPEN ?? 1].includes(
+          socket.readyState,
+        ))
     ) {
       if (!isOnline()) setState('offline')
       return false
@@ -117,7 +124,8 @@ export function createAgentSocket({
       socket ||
       reconnectTimer !== null ||
       reconnectAttempts >= maxReconnectAttempts
-    ) return
+    )
+      return
     connect()
   }
 
@@ -148,12 +156,22 @@ export function createAgentSocket({
 
   function sendClaim({ platform, messengerId, businessId } = {}) {
     if (!agentEscalationQueueEnabled) return false
-    return send({ type: 'claim_chat', platform, messenger_id: messengerId, business_id: businessId })
+    return send({
+      type: 'claim_chat',
+      platform,
+      messenger_id: messengerId,
+      business_id: businessId,
+    })
   }
 
   function sendRelease({ platform, messengerId, businessId } = {}) {
     if (!agentEscalationQueueEnabled) return false
-    return send({ type: 'release_chat', platform, messenger_id: messengerId, business_id: businessId })
+    return send({
+      type: 'release_chat',
+      platform,
+      messenger_id: messengerId,
+      business_id: businessId,
+    })
   }
 
   function close() {

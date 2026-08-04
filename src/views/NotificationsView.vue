@@ -39,8 +39,8 @@ onMounted(refresh)
     <div class="page notifications-page">
       <div class="page-title">
         <div>
-          <h1>Notification Centre</h1>
-          <p>Review workspace activity and updates.</p>
+          <h1>Notifications</h1>
+          <p>Everything that happened while you were away.</p>
         </div>
         <div class="page-actions">
           <AppButton

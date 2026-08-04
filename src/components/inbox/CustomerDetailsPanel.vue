@@ -3,6 +3,7 @@ import { X, Mail, Phone, MapPin, CalendarPlus } from 'lucide-vue-next'
 
 import AppAvatar from '../common/AppAvatar.vue'
 import AppBadge from '../common/AppBadge.vue'
+import { shortReference } from '../../services/displayText'
 
 defineProps({
   conversation: {
@@ -29,7 +30,7 @@ const emit = defineEmits(['close'])
         size="lg"
       />
       <h3>{{ conversation.name }}</h3>
-      <span class="mono">Lead #{{ conversation.id }}</span>
+      <span class="mono">{{ shortReference(conversation.id) }}</span>
       <AppBadge :tone="conversation.status">{{ conversation.status }}</AppBadge>
     </div>
     <section>

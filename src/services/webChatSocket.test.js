@@ -222,9 +222,9 @@ describe('web chat socket', () => {
       first_name: 'Ana',
       language: 'en',
     })
-    expect(
-      socket.sendImage({ url: 'http://localhost:8090/local.jpg' }),
-    ).toBe(true)
+    expect(socket.sendImage({ url: 'http://localhost:8090/local.jpg' })).toBe(
+      true,
+    )
     expect(JSON.parse(ws.sent[1])).toEqual({
       type: 'image',
       url: 'http://localhost:8090/local.jpg',
@@ -251,9 +251,7 @@ describe('web chat socket', () => {
       'http://example.com/photo.jpg',
     ]
     for (const url of unsafeUrls)
-      expect(() => socket.sendImage({ url })).toThrow(
-        'safe uploaded image URL',
-      )
+      expect(() => socket.sendImage({ url })).toThrow('safe uploaded image URL')
     expect(ws.sent).toHaveLength(0)
 
     const input = {

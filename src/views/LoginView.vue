@@ -3,6 +3,7 @@ import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/app'
 import AppButton from '../components/common/AppButton.vue'
+import { friendlyErrorMessage } from '../services/displayText'
 const router = useRouter()
 const store = useAppStore()
 const validationError = ref('')
@@ -11,7 +12,10 @@ const loginForm = reactive({
   password: '',
 })
 
+const submitting = ref(false)
+
 async function submitLogin() {
+  if (submitting.value) return
   validationError.value = ''
 
   const hasValidEmail = /^\S+@\S+\.\S+$/.test(loginForm.email)
@@ -23,16 +27,22 @@ async function submitLogin() {
     return
   }
 
+  submitting.value = true
   try {
     await store.login({
       owner_email: loginForm.email,
       agent_id: 'agent_sithumi',
       agent_name: 'Sithumi',
     })
-    store.notify('Signed in as Sithumi · connected to gateway')
+    store.notify('Welcome back, Sithumi.')
     router.push('/inbox')
   } catch (error) {
-    validationError.value = error.message || 'Could not connect to gateway'
+    validationError.value = friendlyErrorMessage(
+      error,
+      'We could not sign you in. Check your details and try again.',
+    )
+  } finally {
+    submitting.value = false
   }
 }
 </script>
@@ -69,7 +79,9 @@ async function submitLogin() {
           <p v-if="validationError" class="error" role="alert">
             {{ validationError }}
           </p>
-          <AppButton size="lg">Sign in</AppButton>
+          <AppButton size="lg" :loading="submitting">
+            {{ submitting ? 'Signing in…' : 'Sign in' }}
+          </AppButton>
         </form>
         <p class="foot">
           New business?
@@ -149,11 +161,14 @@ async function submitLogin() {
   gap: 15px;
 }
 .error {
-  color: #b42318;
-  background: #fff0ed;
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 12px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.5;
   margin: 0;
 }
 .foot {

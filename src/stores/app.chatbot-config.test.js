@@ -73,8 +73,12 @@ describe('chatbot config store', () => {
     await expect(store.refreshChatbotConfig()).rejects.toThrow(
       'invalid chatbot config response',
     )
-    expect(store.chatbotConfigError).toContain(
+    // The thrown reason stays technical; what the owner is shown does not.
+    expect(store.chatbotConfigError).not.toContain(
       'invalid chatbot config response',
+    )
+    expect(store.chatbotConfigError).toBe(
+      'We could not load your chatbot settings. Please try again.',
     )
     expect(store.toast.type).toBe('error')
   })

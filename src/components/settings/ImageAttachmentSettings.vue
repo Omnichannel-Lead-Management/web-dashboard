@@ -1,48 +1,61 @@
 <script setup>
-import { Image, ShieldAlert } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { Image } from 'lucide-vue-next'
 import { imageAttachmentsEnabled } from '../../config'
 import {
   IMAGE_ATTACHMENT_ACCEPTED_TYPES,
   IMAGE_ATTACHMENT_MAX_BYTES,
 } from '../../services/imageAttachments'
 import AppBadge from '../common/AppBadge.vue'
+
+/** Show `JPG, PNG` rather than the underlying media types. */
+const acceptedFormats = computed(() =>
+  IMAGE_ATTACHMENT_ACCEPTED_TYPES.map((type) =>
+    type
+      .replace(/^image\//, '')
+      .replace('jpeg', 'jpg')
+      .toUpperCase(),
+  ).join(', '),
+)
+
+const maximumSize = computed(
+  () => `${Math.round(IMAGE_ATTACHMENT_MAX_BYTES / 1024 / 1024)} MB`,
+)
 </script>
 
 <template>
   <section class="image-settings">
-    <header>
-      <Image :size="22" />
+    <header class="section-head">
+      <span class="section-icon"><Image :size="22" /></span>
       <div>
         <h2>Image attachments</h2>
-        <p>Safe image sharing for customer conversations.</p>
+        <p>Photos customers can send you in a conversation.</p>
       </div>
       <AppBadge :tone="imageAttachmentsEnabled ? 'success' : 'neutral'">
-        {{ imageAttachmentsEnabled ? 'Enabled' : 'Disabled' }}
+        {{ imageAttachmentsEnabled ? 'Active' : 'Off' }}
       </AppBadge>
     </header>
-    <div class="dependency" role="note">
-      <ShieldAlert :size="18" />
-      <p>
-        <b>Gateway dependency.</b>
-        Image sending requires secure storage behind
-        <code>POST /api/upload-image</code>
-        . Agent image replies additionally require an agent media-send contract.
-      </p>
-    </div>
+
+    <p class="lead">
+      Customers can attach a photo — a receipt, a product, a problem they want
+      to show you — and it appears in the conversation in your Inbox.
+    </p>
+
     <dl>
       <div>
-        <dt>Accepted</dt>
-        <dd>{{ IMAGE_ATTACHMENT_ACCEPTED_TYPES.join(', ') }}</dd>
+        <dt>Accepted formats</dt>
+        <dd>{{ acceptedFormats }}</dd>
       </div>
       <div>
         <dt>Maximum size</dt>
-        <dd>{{ IMAGE_ATTACHMENT_MAX_BYTES / 1024 / 1024 }} MB</dd>
-      </div>
-      <div>
-        <dt>Ready surfaces</dt>
-        <dd>Web chat upload/send; inbox inbound rendering</dd>
+        <dd>{{ maximumSize }}</dd>
       </div>
     </dl>
+
+    <p v-if="!imageAttachmentsEnabled" class="notice">
+      Image attachments are switched off for this workspace. Contact your
+      administrator to turn them on.
+    </p>
   </section>
 </template>
 
@@ -51,50 +64,39 @@ import AppBadge from '../common/AppBadge.vue'
   display: grid;
   gap: 20px;
 }
-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-header div {
-  flex: 1;
-}
-h2,
-p {
+.lead {
   margin: 0;
-}
-header p {
-  color: var(--muted);
-  font-size: 12px;
-}
-.dependency {
-  display: flex;
-  gap: 10px;
-  padding: 13px;
-  border: 1px solid #f1e5bd;
-  border-radius: 11px;
-  color: #795b00;
-  background: #fff8e3;
-  font-size: 12px;
+  color: var(--text-2);
+  font-size: var(--fs-base);
+  line-height: 1.65;
+  max-width: 60ch;
 }
 dl {
   display: grid;
-  gap: 10px;
+  gap: 0;
   margin: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
 }
 dl div {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 12px;
-  padding-bottom: 9px;
-  border-bottom: 1px solid var(--border);
+  padding: 13px 16px;
+  font-size: var(--fs-base);
+}
+dl div + div {
+  border-top: 1px solid var(--border-soft);
 }
 dt {
-  font-weight: 700;
+  color: var(--muted);
+  font-weight: 600;
 }
 dd {
   margin: 0;
-  color: var(--text-2);
+  font-weight: 700;
   text-align: right;
 }
 </style>

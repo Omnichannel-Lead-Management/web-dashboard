@@ -19,7 +19,9 @@ const props = defineProps({
 
 const emit = defineEmits(['status-change'])
 const confirmingCancel = ref(false)
-const actions = computed(() => appointmentStatusActions(props.appointment.status))
+const actions = computed(() =>
+  appointmentStatusActions(props.appointment.status),
+)
 const isUpdating = computed(() => Boolean(props.updatingAction))
 const loadingLabel = computed(
   () =>

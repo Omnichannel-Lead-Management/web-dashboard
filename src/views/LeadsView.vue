@@ -1,7 +1,8 @@
 <script setup>
 import { ref, computed, watch } from 'vue'
-import { Search } from 'lucide-vue-next'
+import { AlertCircle, RefreshCw, Search, Users } from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
+import AppButton from '../components/common/AppButton.vue'
 import LeadTable from '../components/leads/LeadTable.vue'
 import { useAppStore } from '../stores/app'
 import {
@@ -56,16 +57,26 @@ function toggleAllVisible() {
   else selectedIds.value = [...visibleIds.value]
 }
 
-async function finishBulk(ids, results, actionLabel, sessionVersion, requestBusinessId) {
+async function finishBulk(
+  ids,
+  results,
+  actionLabel,
+  sessionVersion,
+  requestBusinessId,
+) {
   const summary = summarizeBulkLeadResults(ids, results)
   await store.refreshLeads({ status: selectedStatus.value || undefined })
   if (
     sessionVersion !== store.leadSessionVersion ||
     requestBusinessId !== store.businessId
-  ) return
+  )
+    return
   selectedIds.value = summary.failedIds
   if (summary.failedIds.length === 0) {
-    bulkMessage.value = { type: 'success', text: `${actionLabel} updated for ${summary.succeededIds.length} leads` }
+    bulkMessage.value = {
+      type: 'success',
+      text: `${actionLabel} updated for ${summary.succeededIds.length} leads`,
+    }
     store.notify(bulkMessage.value.text)
   } else {
     bulkMessage.value = {
@@ -77,14 +88,21 @@ async function finishBulk(ids, results, actionLabel, sessionVersion, requestBusi
 }
 
 async function applyBulkStatus() {
-  if (!selectedIds.value.length || !bulkStatus.value || bulkStatus.value === 'converted') return
+  if (
+    !selectedIds.value.length ||
+    !bulkStatus.value ||
+    bulkStatus.value === 'converted'
+  )
+    return
   bulkLoading.value = true
   bulkMessage.value = null
   const sessionVersion = store.leadSessionVersion
   const requestBusinessId = store.businessId
   const ids = [...selectedIds.value]
   const results = await Promise.allSettled(
-    ids.map((id) => store.updateLead(id, { status: bulkStatus.value }, { silent: true })),
+    ids.map((id) =>
+      store.updateLead(id, { status: bulkStatus.value }, { silent: true }),
+    ),
   )
   if (
     sessionVersion !== store.leadSessionVersion ||
@@ -142,8 +160,9 @@ async function applyBulkAssignment() {
           <Search :size="16" />
           <input
             v-model="searchText"
+            type="search"
             aria-label="Search leads"
-            placeholder="Search leads, IDs or interests"
+            placeholder="Search by name or interest"
           />
         </label>
         <select v-model="selectedStatus" aria-label="Filter by status">
@@ -162,12 +181,20 @@ async function applyBulkAssignment() {
       </div>
       <div v-if="filteredLeads.length" class="selection-bar">
         <label>
-          <input type="checkbox" :checked="allVisibleSelected" @change="toggleAllVisible" />
+          <input
+            type="checkbox"
+            :checked="allVisibleSelected"
+            @change="toggleAllVisible"
+          />
           Select all visible
         </label>
         <strong>{{ selectedIds.length }} selected</strong>
       </div>
-      <div v-if="selectedIds.length" class="bulk-actions" aria-label="Bulk lead actions">
+      <div
+        v-if="selectedIds.length"
+        class="bulk-actions"
+        aria-label="Bulk lead actions"
+      >
         <label>
           Status
           <select v-model="bulkStatus" :disabled="bulkLoading">
@@ -175,47 +202,91 @@ async function applyBulkAssignment() {
             <option value="new">New</option>
             <option value="contacted">Contacted</option>
             <option value="qualified">Qualified</option>
-            <option value="converted" disabled>Converted — edit individually</option>
+            <option value="converted" disabled>
+              Converted — edit individually
+            </option>
             <option value="lost">Lost</option>
           </select>
         </label>
-        <button type="button" :disabled="bulkLoading || !bulkStatus" :aria-busy="bulkLoading" @click="applyBulkStatus">
+        <AppButton
+          size="sm"
+          :disabled="bulkLoading || !bulkStatus"
+          :aria-busy="bulkLoading"
+          @click="applyBulkStatus"
+        >
           Apply status
-        </button>
+        </AppButton>
         <label>
           Assignment
           <select v-model="bulkAssignment" :disabled="bulkLoading">
             <option value="">Choose assignment</option>
             <option value="auto">Auto-assign</option>
-            <option v-if="store.agentId" :value="store.agentId">{{ store.agentName }} (current agent)</option>
+            <option v-if="store.agentId" :value="store.agentId">
+              {{ store.agentName }} (current agent)
+            </option>
           </select>
         </label>
-        <button type="button" :disabled="bulkLoading || !bulkAssignment" :aria-busy="bulkLoading" @click="applyBulkAssignment">
+        <AppButton
+          size="sm"
+          :disabled="bulkLoading || !bulkAssignment"
+          :aria-busy="bulkLoading"
+          @click="applyBulkAssignment"
+        >
           Apply assignment
-        </button>
+        </AppButton>
         <span v-if="bulkLoading" class="bulk-progress" role="status">
           Updating selected leads…
         </span>
       </div>
-      <p v-if="bulkMessage" :class="['bulk-message', bulkMessage.type]" :role="bulkMessage.type === 'error' ? 'alert' : 'status'">
+      <p
+        v-if="bulkMessage"
+        :class="['bulk-message', bulkMessage.type]"
+        :role="bulkMessage.type === 'error' ? 'alert' : 'status'"
+      >
         {{ bulkMessage.text }}
       </p>
-      <p v-if="store.loadingLeads && filteredLeads.length === 0" class="muted" role="status">
-        Loading leads…
-      </p>
-      <p v-else-if="store.leadListError" class="muted error" role="alert">
-        {{ store.leadListError }}
-      </p>
-      <p v-else-if="store.leads.length === 0 && selectedStatus" class="muted">
-        No leads match this status.
-      </p>
-      <p v-else-if="store.leads.length === 0" class="muted">
-        No leads yet. They appear here as soon as the chatbot or routing
-        qualifies one.
-      </p>
-      <p v-else-if="filteredLeads.length === 0" class="muted">
-        No leads match the current search or channel filter.
-      </p>
+      <div
+        v-if="store.loadingLeads && filteredLeads.length === 0"
+        class="card"
+        role="status"
+      >
+        <div class="empty-state">
+          <span class="empty-icon"><RefreshCw class="spin" :size="22" /></span>
+          <h3>Loading your leads…</h3>
+        </div>
+      </div>
+      <div v-else-if="store.leadListError" class="card" role="alert">
+        <div class="empty-state">
+          <span class="empty-icon error"><AlertCircle :size="22" /></span>
+          <h3>We could not load your leads</h3>
+          <p>{{ store.leadListError }}</p>
+          <AppButton
+            variant="outline"
+            @click="store.refreshLeads({ status: selectedStatus || undefined })"
+          >
+            Try again
+          </AppButton>
+        </div>
+      </div>
+      <div v-else-if="filteredLeads.length === 0" class="card">
+        <div class="empty-state">
+          <span class="empty-icon"><Users :size="22" /></span>
+          <h3>
+            {{
+              store.leads.length === 0
+                ? 'No leads yet'
+                : 'Nothing matches these filters'
+            }}
+          </h3>
+          <p>
+            {{
+              store.leads.length === 0
+                ? 'Leads appear here automatically as soon as a customer conversation looks promising.'
+                : 'Try a different status or channel, or clear your search.'
+            }}
+          </p>
+        </div>
+      </div>
       <LeadTable
         v-else
         :leads="filteredLeads"
@@ -226,12 +297,9 @@ async function applyBulkAssignment() {
   </AppShell>
 </template>
 <style scoped>
-.muted {
-  padding: 24px;
-  text-align: center;
-  color: var(--muted);
-  border: 1px dashed var(--border);
-  border-radius: 12px;
+.empty-icon.error {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 .toolbar {
   display: flex;
@@ -244,14 +312,24 @@ async function applyBulkAssignment() {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 10px;
   padding-left: 12px;
   color: var(--muted);
+  transition:
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.toolbar label:focus-within {
+  border-color: var(--primary);
+  box-shadow: var(--ring);
 }
 .toolbar label input {
   border: 0;
+}
+.toolbar label input:focus {
+  box-shadow: none;
 }
 .toolbar select {
   width: 150px;
@@ -262,14 +340,14 @@ async function applyBulkAssignment() {
   align-items: center;
   gap: 12px;
   margin-bottom: 12px;
-  padding: 11px 13px;
+  padding: 11px 14px;
   border: 1px solid var(--border);
-  border-radius: 10px;
-  background: #fff;
+  border-radius: var(--radius);
+  background: var(--surface);
 }
 .selection-bar {
   justify-content: space-between;
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .selection-bar label,
 .bulk-actions label {
@@ -277,33 +355,39 @@ async function applyBulkAssignment() {
   align-items: center;
   gap: 7px;
   color: var(--text-2);
-  font-size: 12px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.selection-bar input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
 }
 .bulk-actions {
   flex-wrap: wrap;
   background: var(--primary-soft);
+  border-color: #dfe3ff;
 }
-.bulk-actions button {
-  padding: 8px 11px;
-  border: 0;
-  border-radius: 8px;
-  color: #fff;
-  background: var(--primary);
-  font-weight: 700;
-}
-.bulk-actions button:disabled {
-  opacity: 0.55;
+.bulk-actions select {
+  width: auto;
+  min-width: 170px;
 }
 .bulk-message {
-  font-size: 12px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+}
+.bulk-message.success {
+  color: var(--success);
+  background: var(--success-bg);
+}
+.bulk-message.error {
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 .bulk-progress {
   color: var(--text-2);
-  font-size: 12px;
-}
-.bulk-message.error,
-.muted.error {
-  color: var(--danger);
+  font-size: var(--fs-sm);
 }
 @media (max-width: 760px) {
   .bulk-actions {

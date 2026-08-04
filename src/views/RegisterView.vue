@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { useAppStore } from '../stores/app'
 import AppButton from '../components/common/AppButton.vue'
 import { BUSINESS_SECTORS } from '../constants/businessSectors'
+import { friendlyErrorMessage } from '../services/displayText'
 
 const router = useRouter()
 const store = useAppStore()
@@ -38,10 +39,13 @@ async function submitRegistration() {
 
   try {
     await store.registerBusiness(registrationForm)
-    store.notify('Business created — connect your Telegram bot')
+    store.notify('Business created. Next, connect a channel.')
     router.push('/settings?section=telegram')
   } catch (error) {
-    validationError.value = error.message || 'Could not create business'
+    validationError.value = friendlyErrorMessage(
+      error,
+      'We could not create your business. Please try again.',
+    )
   }
 }
 </script>
@@ -167,11 +171,14 @@ form {
   grid-column: 1/-1;
 }
 .error {
-  color: #b42318;
-  background: #fff0ed;
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 12px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  padding: 11px 13px;
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.5;
   margin: 0;
 }
 .foot {

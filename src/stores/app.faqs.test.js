@@ -62,7 +62,15 @@ describe('FAQ store actions', () => {
   })
 
   test('normal update applies only after the successful response', async () => {
-    store.faqs = [{ id: 'faq_1', question: 'Old?', answer: 'Old', enabled: true, keywords: [] }]
+    store.faqs = [
+      {
+        id: 'faq_1',
+        question: 'Old?',
+        answer: 'Old',
+        enabled: true,
+        keywords: [],
+      },
+    ]
     const pending = deferred()
     gatewayApi.updateFaq = () => pending.promise
 
@@ -74,7 +82,9 @@ describe('FAQ store actions', () => {
     })
     expect(store.faqs[0].question).toBe('Old?')
     expect(store.toast).toBeNull()
-    pending.resolve({ faq: { id: 'faq_1', question: 'New?', answer: 'New', enabled: true } })
+    pending.resolve({
+      faq: { id: 'faq_1', question: 'New?', answer: 'New', enabled: true },
+    })
     await request
 
     expect(store.faqs[0].question).toBe('New?')
@@ -160,7 +170,15 @@ describe('FAQ store actions', () => {
   })
 
   test('successful edit cannot be overwritten by an older list response', async () => {
-    store.faqs = [{ id: 'faq_1', question: 'Old?', answer: 'Old', keywords: [], enabled: true }]
+    store.faqs = [
+      {
+        id: 'faq_1',
+        question: 'Old?',
+        answer: 'Old',
+        keywords: [],
+        enabled: true,
+      },
+    ]
     const oldList = deferred()
     gatewayApi.listFaqs = () => oldList.promise
     gatewayApi.updateFaq = async () => ({
@@ -174,7 +192,9 @@ describe('FAQ store actions', () => {
       keywords: [],
       enabled: true,
     })
-    oldList.resolve({ faqs: [{ id: 'faq_1', question: 'Old?', answer: 'Old' }] })
+    oldList.resolve({
+      faqs: [{ id: 'faq_1', question: 'Old?', answer: 'Old' }],
+    })
     await listRequest
 
     expect(store.faqs[0].question).toBe('New?')

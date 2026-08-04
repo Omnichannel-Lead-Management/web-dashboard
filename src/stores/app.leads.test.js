@@ -41,7 +41,12 @@ beforeEach(() => {
   store.agentName = 'Current Agent'
   store.leads = [{ id: 'lead_1', status: 'new', notes: '', tags: [] }]
   leadService.get = async () => ({
-    lead: { id: 'lead_1', status: 'contacted', notes: 'Call tomorrow', tags: [] },
+    lead: {
+      id: 'lead_1',
+      status: 'contacted',
+      notes: 'Call tomorrow',
+      tags: [],
+    },
     activities: [{ id: 'activity_1', type: 'notes_updated' }],
   })
 })
@@ -61,7 +66,12 @@ describe('lead store mutations', () => {
     expect(received.payload.performed_by).toBe('agent_current')
     expect(store.toast).toBeNull()
 
-    resolveUpdate({ id: 'lead_1', status: 'new', notes: 'Call tomorrow', tags: [] })
+    resolveUpdate({
+      id: 'lead_1',
+      status: 'new',
+      notes: 'Call tomorrow',
+      tags: [],
+    })
     await request
 
     expect(store.leads[0].notes).toBe('Call tomorrow')
@@ -69,7 +79,10 @@ describe('lead store mutations', () => {
     expect(store.leadActivities).toEqual([
       { id: 'activity_1', type: 'notes_updated' },
     ])
-    expect(store.toast).toEqual({ message: 'Lead notes updated', type: 'success' })
+    expect(store.toast).toEqual({
+      message: 'Lead notes updated',
+      type: 'success',
+    })
   })
 
   test('failed update reports the API error and never shows success', async () => {
@@ -77,10 +90,13 @@ describe('lead store mutations', () => {
       throw new Error('Lead update rejected')
     }
 
-    await expect(
-      store.updateLead('lead_1', { tags: ['vip'] }),
-    ).rejects.toThrow('Lead update rejected')
-    expect(store.toast).toEqual({ message: 'Lead update rejected', type: 'error' })
+    await expect(store.updateLead('lead_1', { tags: ['vip'] })).rejects.toThrow(
+      'Lead update rejected',
+    )
+    expect(store.toast).toEqual({
+      message: 'Lead update rejected',
+      type: 'error',
+    })
   })
 
   test('successful update stays fulfilled and merged when detail refresh fails', async () => {
@@ -103,7 +119,11 @@ describe('lead store mutations', () => {
       type: 'error',
     })
     const settled = await Promise.allSettled([
-      store.updateLead('lead_1', { notes: 'Persisted again' }, { silent: true }),
+      store.updateLead(
+        'lead_1',
+        { notes: 'Persisted again' },
+        { silent: true },
+      ),
     ])
     expect(settled[0].status).toBe('fulfilled')
   })
@@ -244,9 +264,9 @@ describe('lead detail request sequencing', () => {
       throw new Error('Lead not found')
     }
 
-    await expect(
-      store.refreshLeadDetail('shared_lead_id'),
-    ).rejects.toThrow('Lead not found')
+    await expect(store.refreshLeadDetail('shared_lead_id')).rejects.toThrow(
+      'Lead not found',
+    )
 
     expect(store.leadDetail).toBeNull()
     expect(store.leadActivities).toEqual([])

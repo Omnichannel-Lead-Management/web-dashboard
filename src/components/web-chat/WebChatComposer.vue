@@ -69,8 +69,7 @@ function submit() {
       {{ attachment.error }}
     </p>
     <p v-else-if="!attachmentsEnabled" class="attachment-note" role="note">
-      Image sending is ready in the dashboard, but it requires a secure
-      media-upload API.
+      Sending photos is turned off for this chat.
     </p>
     <label for="web-chat-message">Message</label>
     <div>

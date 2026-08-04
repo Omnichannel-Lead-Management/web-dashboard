@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import { Info, RefreshCw } from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
 import AppButton from '../components/common/AppButton.vue'
 import AnalyticsDateRange from '../components/analytics/AnalyticsDateRange.vue'
@@ -32,7 +33,7 @@ const analyticsTimezone = computed(
 const timezoneLabel = computed(() =>
   businessTimezone.value
     ? `Business timezone: ${analyticsTimezone.value}`
-    : `Browser timezone fallback: ${analyticsTimezone.value}`,
+    : `Your device timezone: ${analyticsTimezone.value}`,
 )
 const range = ref(createAnalyticsDateRange(analyticsTimezone.value))
 const resolvingBusinessId = ref('')
@@ -54,11 +55,11 @@ const local = computed(() =>
 )
 const localKpis = computed(() =>
   [
-    ['Currently loaded conversations', local.value.summary.conversations],
-    ['Currently loaded leads', local.value.summary.leads],
-    ['Currently loaded appointments', local.value.summary.appointments],
-    ['Currently loaded escalations', local.value.summary.escalations],
-  ].map(([label, value]) => ({ label, value, note: 'Session snapshot' })),
+    ['Conversations', local.value.summary.conversations],
+    ['Leads', local.value.summary.leads],
+    ['Appointments', local.value.summary.appointments],
+    ['Escalations', local.value.summary.escalations],
+  ].map(([label, value]) => ({ label, value, note: 'Open in this dashboard' })),
 )
 const remoteKpis = computed(() => {
   const s = store.analytics?.summary || {}
@@ -170,18 +171,24 @@ onMounted(() => initializeForBusiness(store.businessId))
         </div>
         <AppButton
           v-if="store.analyticsAvailable"
-          variant="secondary"
+          variant="outline"
           :disabled="!!rangeError || store.analyticsRefreshing"
           @click="load({ force: true })"
         >
+          <RefreshCw :size="15" :class="{ spin: store.analyticsRefreshing }" />
           {{ store.analyticsRefreshing ? 'Refreshing…' : 'Refresh' }}
         </AppButton>
       </header>
-      <section v-if="!store.analyticsAvailable" class="notice" role="status">
-        <strong>
-          Business-wide analytics are ready in the dashboard, but live reporting
-          requires the gateway analytics API.
-        </strong>
+      <section
+        v-if="!store.analyticsAvailable"
+        class="notice notice--warning"
+        role="status"
+      >
+        <Info :size="18" />
+        <p>
+          Full business reporting is turned off for this workspace, so the
+          figures below cover only what is currently open in this dashboard.
+        </p>
       </section>
       <AnalyticsDateRange
         v-if="store.analyticsAvailable"
@@ -193,15 +200,16 @@ onMounted(() => initializeForBusiness(store.businessId))
         @update:from="range = { ...range, preset: 'custom', from: $event }"
         @update:to="range = { ...range, preset: 'custom', to: $event }"
       />
-      <p v-if="store.analyticsError" role="alert" class="error">
+      <p v-if="store.analyticsError" role="alert" class="notice notice--danger">
         {{ store.analyticsError }}
       </p>
-      <p v-if="store.analyticsLoading" role="status">
-        Loading business analytics…
-      </p>
+      <div v-if="store.analyticsLoading" class="loading" role="status">
+        <RefreshCw class="spin" :size="18" />
+        Loading your report…
+      </div>
       <template v-if="store.analyticsAvailable && store.analytics">
         <p v-if="remoteEmpty" class="empty" role="status">
-          No supported analytics data is available for the selected range.
+          There is no activity in the dates you selected. Try a wider range.
         </p>
         <AnalyticsKpiGrid :items="remoteKpis" />
         <div class="sections">
@@ -236,26 +244,26 @@ onMounted(() => initializeForBusiness(store.businessId))
         </div>
       </template>
       <section v-else-if="!store.analyticsAvailable" class="snapshot">
-        <h2>Current loaded workspace snapshot</h2>
+        <h2>What is open in this dashboard</h2>
         <p>
-          These figures include only records currently loaded in this dashboard
-          session and may not represent complete business totals.
+          A count of the records open on your screen right now. These figures
+          may not represent complete business totals.
         </p>
         <p v-if="local.empty" class="empty">
-          No confirmed records are currently loaded for this workspace.
+          Nothing is loaded yet. Open your Inbox or Leads and come back.
         </p>
         <AnalyticsKpiGrid :items="localKpis" />
         <div class="sections">
           <AnalyticsDistribution
-            title="Loaded lead statuses"
+            title="Lead statuses"
             :rows="local.leadStatuses"
           />
           <AnalyticsDistribution
-            title="Loaded appointment statuses"
+            title="Appointment statuses"
             :rows="local.appointmentStatuses"
           />
           <AnalyticsDistribution
-            title="Loaded escalation statuses"
+            title="Escalation statuses"
             :rows="local.escalationStatuses"
           />
         </div>
@@ -275,26 +283,29 @@ onMounted(() => initializeForBusiness(store.businessId))
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
 }
-.page h1,
-.page header p {
+.page h1 {
   margin: 0;
+  font-size: var(--fs-2xl);
+}
+.page header p {
+  margin: 4px 0 0;
 }
 .page header p,
 .snapshot > p,
 .empty {
   color: var(--muted);
+  font-size: 14px;
 }
-.notice,
-.error {
-  padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: #fff8e3;
-}
-.error {
-  color: var(--danger);
-  background: var(--danger-bg);
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 48px;
+  color: var(--muted);
+  font-size: var(--fs-base);
 }
 .snapshot {
   display: grid;
@@ -302,10 +313,11 @@ onMounted(() => initializeForBusiness(store.businessId))
 }
 .snapshot h2 {
   margin: 0;
+  font-size: var(--fs-xl);
 }
 .sections {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 14px;
 }
 @media (max-width: 760px) {

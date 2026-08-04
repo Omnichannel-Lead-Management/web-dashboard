@@ -1,5 +1,5 @@
 <script setup>
-import { Bell, ExternalLink, ShieldAlert } from 'lucide-vue-next'
+import { Bell, ExternalLink } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 import { notificationCenterEnabled } from '../../config'
 import AppBadge from '../common/AppBadge.vue'
@@ -10,31 +10,34 @@ const router = useRouter()
 
 <template>
   <section class="notification-settings">
-    <div class="heading">
-      <span><Bell :size="20" /></span>
+    <header class="section-head">
+      <span class="section-icon"><Bell :size="22" /></span>
       <div>
-        <h2>Notification Centre</h2>
-        <p>Review the dashboard notification capability.</p>
+        <h2>Notifications</h2>
+        <p>Updates you should not miss, collected in one place.</p>
       </div>
       <AppBadge :tone="notificationCenterEnabled ? 'success' : 'neutral'">
-        {{ notificationCenterEnabled ? 'Enabled' : 'Disabled' }}
+        {{ notificationCenterEnabled ? 'Active' : 'Off' }}
       </AppBadge>
-    </div>
-    <div class="dependency" role="note">
-      <ShieldAlert :size="18" />
-      <p>
-        <b>Gateway dependency.</b>
-        Live notification listing and read actions require the business-scoped
-        notification API.
-      </p>
-    </div>
-    <p v-if="!notificationCenterEnabled" class="muted">
-      Notification Centre is ready in the dashboard, but live notifications
-      require the gateway notification API.
+    </header>
+
+    <p class="lead">
+      New leads, conversations that need a person, and appointment changes are
+      collected here so nothing slips past while you are busy.
     </p>
-    <AppButton variant="outline" @click="router.push('/notifications')">
+
+    <p v-if="!notificationCenterEnabled" class="notice">
+      Notifications are switched off for this workspace. Contact your
+      administrator to turn them on.
+    </p>
+
+    <AppButton
+      variant="outline"
+      class="cta"
+      @click="router.push('/notifications')"
+    >
       <ExternalLink :size="16" />
-      Open Notification Centre
+      Open notifications
     </AppButton>
   </section>
 </template>
@@ -44,45 +47,14 @@ const router = useRouter()
   display: grid;
   gap: 20px;
 }
-.heading {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.heading > span {
-  width: 42px;
-  height: 42px;
-  display: grid;
-  place-items: center;
-  border-radius: 11px;
-  color: var(--primary);
-  background: var(--primary-soft);
-}
-.heading > div {
-  flex: 1;
-}
-.heading h2,
-.heading p,
-.dependency p {
+.lead {
   margin: 0;
+  color: var(--text-2);
+  font-size: var(--fs-base);
+  line-height: 1.65;
+  max-width: 60ch;
 }
-.heading p,
-.muted {
-  color: var(--muted);
-  font-size: 12px;
-}
-.dependency {
-  display: flex;
-  gap: 10px;
-  padding: 13px;
-  color: #795b00;
-  background: #fff8e3;
-  border: 1px solid #f1e5bd;
-  border-radius: 11px;
-  font-size: 12px;
-  line-height: 1.5;
-}
-.dependency svg {
-  flex: none;
+.cta {
+  justify-self: start;
 }
 </style>

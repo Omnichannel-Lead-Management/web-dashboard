@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, nextTick, provide, watch } from 'vue'
 import { useRoute } from 'vue-router'
+import { MessagesSquare } from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
 import ConversationList from '../components/inbox/ConversationList.vue'
 import ChatHeader from '../components/inbox/ChatHeader.vue'
@@ -22,7 +23,7 @@ const previewSelectedConversationId = ref('')
 const previewIdentity = ref(null)
 
 if (import.meta.env.DEV) {
-watch(
+  watch(
     isInboxPreview,
     async (enabled) => {
       if (!enabled) return
@@ -85,22 +86,23 @@ const selectedConversationId = computed(() =>
     : store.selectedConversationId,
 )
 
-const selectedConversation = computed(
-  () => {
-    const selected = conversations.value.find(
+const selectedConversation = computed(() => {
+  const selected =
+    conversations.value.find(
       (conversation) => conversation.id === selectedConversationId.value,
     ) ||
     conversations.value[0] ||
     emptyConversation
-    if (!selected.id) return selected
-    const claimedByAgentId = selected.claimedByAgentId || ''
-    return {
-      ...selected,
-      claimed: Boolean(claimedByAgentId && claimedByAgentId === store.agentId),
-      claimedByOther: Boolean(claimedByAgentId && claimedByAgentId !== store.agentId),
-    }
-  },
-)
+  if (!selected.id) return selected
+  const claimedByAgentId = selected.claimedByAgentId || ''
+  return {
+    ...selected,
+    claimed: Boolean(claimedByAgentId && claimedByAgentId === store.agentId),
+    claimedByOther: Boolean(
+      claimedByAgentId && claimedByAgentId !== store.agentId,
+    ),
+  }
+})
 
 const selectedMessages = computed(
   () =>
@@ -220,7 +222,13 @@ function releaseConversation(id) {
           </span>
         </div>
         <div v-else class="empty-workspace">
-          Select a conversation to view its messages.
+          <div class="empty-state">
+            <span class="empty-icon"><MessagesSquare :size="24" /></span>
+            <h3>Select a conversation</h3>
+            <p>
+              Choose someone from the list to read the conversation and reply.
+            </p>
+          </div>
         </div>
         <ChatComposer
           v-if="selectedConversation.id"
@@ -275,12 +283,12 @@ function releaseConversation(id) {
 .empty-chat {
   margin: auto;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--fs-base);
 }
 .empty-workspace {
   margin: auto;
-  color: var(--muted);
-  font-size: 13px;
+  display: grid;
+  place-items: center;
 }
 @media (max-width: 1100px) {
   .inbox-layout {

@@ -1,5 +1,6 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
+import { Building2 } from 'lucide-vue-next'
 import AppButton from '../common/AppButton.vue'
 import BusinessHoursEditor from './BusinessHoursEditor.vue'
 import {
@@ -20,6 +21,7 @@ import {
 import { getBusinessSectorOptions } from '../../constants/businessSectors'
 import { useAppStore } from '../../stores/app'
 import { businessProfileUpdateEnabled } from '../../config'
+import { friendlyErrorMessage } from '../../services/displayText'
 
 const store = useAppStore()
 const draft = reactive(mapBusinessProfile())
@@ -63,9 +65,13 @@ const canSave = computed(() =>
     saving: store.businessProfileSaving,
   }),
 )
-const endpointUnavailable = computed(() =>
-  /404|not found|cannot (get|patch)|endpoint/i.test(saveError.value),
-)
+/**
+ * A 404 on save means this workspace has no profile-update capability. The
+ * status is tracked separately because the message shown to the owner is
+ * deliberately free of platform detail.
+ */
+const saveNotSupported = ref(false)
+const endpointUnavailable = computed(() => saveNotSupported.value)
 
 function replaceDraft(profile) {
   Object.assign(draft, cloneBusinessProfileDraft(profile))
@@ -74,6 +80,7 @@ function replaceDraft(profile) {
 function reset() {
   replaceDraft(baseline.value)
   saveError.value = ''
+  saveNotSupported.value = false
   saveStatus.value = ''
 }
 
@@ -93,6 +100,7 @@ function synchronizeConfirmed(
   replaceDraft(reconciled.draft)
   if (clearFeedback) {
     saveError.value = ''
+    saveNotSupported.value = false
     saveStatus.value = ''
   }
 }
@@ -112,7 +120,10 @@ async function load() {
       synchronizeConfirmed(result)
   } catch (error) {
     if (store.authenticated && store.businessId === requestBusinessId)
-      loadError.value = error.message || 'Business profile could not be loaded.'
+      loadError.value = friendlyErrorMessage(
+        error,
+        'We could not load your business profile.',
+      )
   } finally {
     if (store.authenticated && store.businessId === requestBusinessId)
       loading.value = false
@@ -122,6 +133,7 @@ async function load() {
 async function save() {
   if (!canSave.value) return
   saveError.value = ''
+  saveNotSupported.value = false
   saveStatus.value = 'Saving business profile…'
   const requestBusinessId = store.businessId
   try {
@@ -136,7 +148,11 @@ async function save() {
     saveStatus.value = 'Business profile saved.'
   } catch (error) {
     if (!store.authenticated || requestBusinessId !== store.businessId) return
-    saveError.value = error.message || 'Business profile could not be saved.'
+    saveNotSupported.value = error?.status === 404
+    saveError.value = friendlyErrorMessage(
+      error,
+      'We could not save your business profile. Please try again.',
+    )
     saveStatus.value = ''
   }
 }
@@ -146,6 +162,7 @@ watch(
   ([authenticated, businessId]) => {
     loadError.value = ''
     saveError.value = ''
+    saveNotSupported.value = false
     if (!authenticated) {
       synchronizeConfirmed(mapBusinessProfile(), {
         force: true,
@@ -175,8 +192,13 @@ watch(confirmedBusiness, (business) => {
 
 <template>
   <section aria-labelledby="business-profile-heading">
-    <h2 id="business-profile-heading">Business Profile</h2>
-    <p class="intro">Manage your business identity and operating details.</p>
+    <header class="section-head">
+      <span class="section-icon"><Building2 :size="22" /></span>
+      <div>
+        <h2 id="business-profile-heading">Business profile</h2>
+        <p>Your business details and opening hours.</p>
+      </div>
+    </header>
     <div v-if="loading && !confirmedBusiness" class="notice" role="status">
       Loading business profile…
     </div>
@@ -197,13 +219,10 @@ watch(confirmedBusiness, (business) => {
         class="schema-note"
         role="note"
       >
-        <b>
-          Profile editing is ready in the dashboard, but saving requires the
-          gateway business-update API.
-        </b>
+        <b>Editing your profile is not available yet.</b>
         <span>
-          Changes made here are not saved until backend profile updates are
-          enabled.
+          You can review your details here, but changes will not be saved.
+          Contact your administrator to turn on profile editing.
         </span>
       </div>
       <div class="form-grid">
@@ -293,8 +312,8 @@ watch(confirmedBusiness, (business) => {
       />
       <p v-if="saveError" class="notice error" role="alert">{{ saveError }}</p>
       <p v-if="endpointUnavailable" class="backend-note">
-        The profile editor is complete, but the gateway does not yet provide the
-        business-update endpoint.
+        Saving profile changes is not available for this workspace yet. Your
+        existing details are unchanged.
       </p>
       <p class="save-status" aria-live="polite">{{ saveStatus }}</p>
       <div class="actions">
@@ -324,11 +343,6 @@ watch(confirmedBusiness, (business) => {
 </template>
 
 <style scoped>
-.intro {
-  color: var(--muted);
-  font-size: 13.5px;
-  margin-bottom: 18px;
-}
 .form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -345,36 +359,43 @@ watch(confirmedBusiness, (business) => {
 }
 .schema-note,
 .backend-note {
-  padding: 11px 13px;
-  border-radius: 9px;
-  background: var(--primary-soft);
-  color: var(--text-2);
-  font-size: 12px;
+  padding: 12px 14px;
+  margin-bottom: 4px;
+  border: 1px solid var(--warning-border);
+  border-radius: var(--radius-sm);
+  background: var(--warning-bg);
+  color: var(--warning);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
 }
 .schema-note {
   display: grid;
   gap: 4px;
-}
-.backend-note {
-  background: var(--danger-bg);
 }
 .notice {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  padding: 12px;
-  border-radius: 9px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
+  font-size: var(--fs-sm);
 }
-.error,
+.notice.error {
+  color: var(--danger);
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+}
 .field-error {
   color: var(--danger);
+  font-weight: 600;
 }
 .save-status {
   min-height: 18px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--fs-sm);
 }
 .actions {
   display: flex;

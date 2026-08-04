@@ -1,4 +1,6 @@
 <script setup>
+import { AlertCircle, BellOff, RefreshCw } from 'lucide-vue-next'
+
 defineProps({
   loading: { type: Boolean, default: false },
   error: { type: String, default: '' },
@@ -8,37 +10,56 @@ defineProps({
 </script>
 
 <template>
-  <div v-if="unavailable" class="status unavailable" role="status">
-    Notification Centre is ready in the dashboard, but live notifications
-    require the gateway notification API.
+  <div v-if="unavailable" class="status notice--warning" role="status">
+    <BellOff :size="18" />
+    <p>
+      Notifications are switched off for this workspace. Contact your
+      administrator to turn them on.
+    </p>
   </div>
   <div v-else-if="loading && !stale" class="status" role="status">
-    Loading notifications…
+    <RefreshCw class="spin" :size="18" />
+    <p>Loading your notifications…</p>
   </div>
-  <div v-else-if="error" class="status error" role="alert">
-    <b>{{ stale ? 'Refresh failed.' : 'Notifications unavailable.' }}</b>
-    {{ error }}
+  <div v-else-if="error" class="status notice--danger" role="alert">
+    <AlertCircle :size="18" />
+    <p>
+      <b>
+        {{ stale ? 'Could not refresh.' : 'Could not load notifications.' }}
+      </b>
+      {{ error }}
+    </p>
   </div>
 </template>
 
 <style scoped>
 .status {
-  padding: 12px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 13px 15px;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius);
   color: var(--text-2);
-  background: #f8f9fb;
-  font-size: 12px;
-  line-height: 1.5;
+  background: var(--surface-2);
+  font-size: var(--fs-sm);
+  line-height: 1.55;
 }
-.unavailable {
-  color: #795b00;
-  background: #fff8e3;
-  border-color: #f1e5bd;
+.status > svg {
+  flex: none;
+  margin-top: 1px;
 }
-.error {
+.status p {
+  margin: 0;
+}
+.notice--warning {
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+}
+.notice--danger {
   color: var(--danger);
   background: var(--danger-bg);
-  border-color: #f4cbbd;
+  border-color: var(--danger-border);
 }
 </style>

@@ -4,6 +4,7 @@ import { Building2, RefreshCw } from 'lucide-vue-next'
 import AppButton from '../common/AppButton.vue'
 import { useAppStore } from '../../stores/app'
 import { getBusinessSectorLabel } from '../../constants/businessSectors'
+import { friendlyErrorMessage } from '../../services/displayText'
 
 const store = useAppStore()
 const loading = ref(false)
@@ -18,7 +19,10 @@ async function load() {
   try {
     await store.refreshBusiness()
   } catch (loadError) {
-    error.value = loadError.message || 'Failed to load business'
+    error.value = friendlyErrorMessage(
+      loadError,
+      'We could not load your business details.',
+    )
   } finally {
     loading.value = false
   }
@@ -60,7 +64,8 @@ onMounted(() => {
         </dl>
       </div>
       <p class="notice">
-        Business profile editing requires the gateway business-update API.
+        Need to change any of this? You can edit your business profile from
+        Settings once setup is finished.
       </p>
     </template>
     <p v-else class="notice error" role="alert">

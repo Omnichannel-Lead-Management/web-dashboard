@@ -189,12 +189,11 @@ describe('business profile validation', () => {
     ).text()
     expect(component).toContain('if (!canSave.value) return')
     expect(component).toContain(':disabled="!canSave"')
-    expect(component).toContain(
-      'Profile editing is ready in the dashboard, but saving requires the',
-    )
-    expect(component).toContain(
-      'Changes made here are not saved until backend profile updates are',
-    )
+    // The owner is told the effect on their work, not which service is missing.
+    expect(component).toContain('Editing your profile is not available yet.')
+    expect(component).toContain('changes will not be saved')
+    expect(component).not.toContain('business-update')
+    expect(component).not.toContain('gateway')
     expect(component).toContain('@click="reset"')
     expect(component).not.toMatch(/localStorage.*draft|draft.*localStorage/s)
   })

@@ -1,24 +1,45 @@
 <script setup>
 import { computed } from 'vue'
+
 const props = defineProps({
   title: { type: String, required: true },
   rows: { type: Array, default: () => [] },
 })
+
 const max = computed(() => Math.max(1, ...props.rows.map((row) => row.value)))
+const total = computed(() =>
+  props.rows.reduce((sum, row) => sum + (row.value || 0), 0),
+)
+
+function share(value) {
+  if (!total.value) return ''
+  return `${Math.round((value / total.value) * 100)}%`
+}
 </script>
+
 <template>
   <section class="card distribution">
-    <h2>{{ title }}</h2>
-    <p v-if="!rows.length" class="empty">No loaded records in this category.</p>
+    <header>
+      <h2>{{ title }}</h2>
+      <span v-if="rows.length" class="total">{{ total }} total</span>
+    </header>
+
+    <p v-if="!rows.length" class="empty-row">Nothing to show yet.</p>
+
     <template v-else>
       <div aria-hidden="true" class="bars">
-        <div v-for="row in rows" :key="row.category">
-          <span>{{ row.category }}</span>
+        <div v-for="row in rows" :key="row.category" class="bar-row">
+          <span class="category">{{ row.category }}</span>
           <i><b :style="{ width: `${(row.value / max) * 100}%` }" /></i>
-          <strong>{{ row.value }}</strong>
+          <strong>
+            {{ row.value }}
+            <em>{{ share(row.value) }}</em>
+          </strong>
         </div>
       </div>
-      <table>
+
+      <!-- Same numbers as the chart, for screen readers. -->
+      <table class="visually-hidden">
         <caption>{{ title }} data</caption>
         <thead>
           <tr>
@@ -36,50 +57,91 @@ const max = computed(() => Math.max(1, ...props.rows.map((row) => row.value)))
     </template>
   </section>
 </template>
+
 <style scoped>
 .distribution {
-  padding: 18px;
+  padding: 20px;
+}
+.distribution header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 .distribution h2 {
-  margin: 0 0 14px;
-  font-size: 16px;
+  margin: 0;
+  font-size: var(--fs-lg);
 }
-.bars > div {
+.total {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.bars {
   display: grid;
-  grid-template-columns: minmax(90px, 1fr) 2fr 35px;
-  gap: 9px;
+  gap: 12px;
+}
+.bar-row {
+  display: grid;
+  grid-template-columns: minmax(90px, 1fr) 2fr auto;
+  gap: 12px;
   align-items: center;
-  margin: 9px 0;
-  font-size: 12px;
+  font-size: var(--fs-sm);
+}
+.category {
+  color: var(--text-2);
+  font-weight: 600;
+  text-transform: capitalize;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .bars i {
-  height: 9px;
-  background: var(--surface-2, #eee);
-  border-radius: 9px;
+  height: 10px;
+  background: var(--surface-3);
+  border-radius: var(--radius-pill);
   overflow: hidden;
 }
 .bars b {
   display: block;
   height: 100%;
-  background: var(--primary);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--primary) 0%, #6d67ec 100%);
+  transition: width var(--dur) var(--ease);
 }
-table {
-  width: 100%;
-  margin-top: 14px;
-  border-collapse: collapse;
+.bar-row strong {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  justify-content: flex-end;
+  min-width: 62px;
+  font-variant-numeric: tabular-nums;
 }
-caption {
-  text-align: left;
-  font-weight: 700;
-  padding: 8px 0;
-}
-th,
-td {
-  text-align: left;
-  padding: 7px;
-  border-bottom: 1px solid var(--border);
-}
-.empty {
+.bar-row em {
+  font-style: normal;
+  font-size: var(--fs-2xs);
+  font-weight: 600;
   color: var(--muted);
+}
+
+.empty-row {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--fs-base);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

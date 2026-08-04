@@ -14,6 +14,7 @@ import AppAvatar from '../components/common/AppAvatar.vue'
 import AppBadge from '../components/common/AppBadge.vue'
 import AppButton from '../components/common/AppButton.vue'
 import LeadEditPanel from '../components/leads/LeadEditPanel.vue'
+import { friendlyErrorMessage, shortReference } from '../services/displayText'
 import { useAppStore } from '../stores/app'
 const store = useAppStore()
 const route = useRoute()
@@ -38,7 +39,9 @@ const activities = computed(() =>
   store.leadDetail?.id === route.params.id ? store.leadActivities : [],
 )
 const availableAgents = computed(() =>
-  store.agentId ? [{ id: store.agentId, name: store.agentName || store.agentId }] : [],
+  store.agentId
+    ? [{ id: store.agentId, name: store.agentName || store.agentId }]
+    : [],
 )
 
 async function load(id) {
@@ -50,7 +53,10 @@ async function load(id) {
     await store.refreshLeadDetail(id)
   } catch (error) {
     if (requestId !== loadRequestId) return
-    loadError.value = error.message || 'Failed to load lead'
+    loadError.value = friendlyErrorMessage(
+      error,
+      'We could not load this lead. Please try again.',
+    )
     store.notify(loadError.value, 'error')
   } finally {
     if (requestId === loadRequestId) loading.value = false
@@ -64,7 +70,10 @@ async function handleUpdate({ kind, patch }) {
   try {
     await store.updateLead(lead.value.id, patch)
   } catch (error) {
-    mutationError.value = error.message || 'Failed to update lead'
+    mutationError.value = friendlyErrorMessage(
+      error,
+      'We could not save that change. Please try again.',
+    )
   } finally {
     busyField.value = ''
   }
@@ -78,7 +87,10 @@ async function handleAssignment({ agentId }) {
     if (agentId) await store.assignLead(lead.value.id, agentId)
     else await store.autoAssignLead(lead.value.id)
   } catch (error) {
-    mutationError.value = error.message || 'Failed to assign lead'
+    mutationError.value = friendlyErrorMessage(
+      error,
+      'We could not assign this lead. Please try again.',
+    )
   } finally {
     busyField.value = ''
   }
@@ -93,7 +105,6 @@ function activityTone(type) {
   if (type === 'status_changed' || type === 'assigned') return 'orange'
   return ''
 }
-
 </script>
 <template>
   <AppShell>
@@ -113,7 +124,10 @@ function activityTone(type) {
             <h1>{{ lead.name }}</h1>
             <AppBadge :tone="lead.channel">{{ lead.channel }}</AppBadge>
           </span>
-          <p class="mono">Lead #{{ lead.id }} · Created {{ lead.created }}</p>
+          <p>
+            <span class="mono">{{ shortReference(lead.id) }}</span>
+            · Created {{ lead.created }}
+          </p>
         </div>
         <div class="hero-actions">
           <AppButton variant="outline" @click="router.push('/inbox')">
@@ -168,8 +182,8 @@ function activityTone(type) {
               <i :class="activityTone(entry.type)" />
               {{ entry.description }}
               <small>
-                {{ entry.by || 'Unknown actor' }}
-                <template v-if="entry.age"> · {{ entry.age }} ago</template>
+                {{ entry.by || 'System' }}
+                <template v-if="entry.age">· {{ entry.age }} ago</template>
               </small>
             </li>
           </ol>

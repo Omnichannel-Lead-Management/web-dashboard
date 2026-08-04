@@ -14,59 +14,71 @@ defineProps({
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 3px 9px;
-  border-radius: 99px;
-  font-size: 11px;
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-xs);
   font-weight: 700;
+  line-height: 1.5;
   white-space: nowrap;
+  text-transform: capitalize;
 }
+
 .badge--neutral,
 .badge--new {
-  color: #565c6e;
-  background: #eef0f5;
+  color: var(--text-2);
+  background: var(--surface-3);
+  border-color: #e3e5ec;
 }
 .badge--primary,
 .badge--qualified {
-  color: #4f46e5;
-  background: #eef2ff;
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: #dfe3ff;
 }
 .badge--contacted {
   color: #3730a3;
-  background: #e0e7ff;
+  background: var(--primary-soft-2);
+  border-color: #cdd6ff;
 }
 .badge--success,
 .badge--converted,
 .badge--confirmed {
-  color: #0f7a54;
-  background: #dff3e8;
+  color: var(--success);
+  background: var(--success-bg);
+  border-color: var(--success-border);
 }
 .badge--lost,
 .badge--completed {
   color: #7a8090;
-  background: #f1f2f6;
+  background: var(--surface-3);
+  border-color: #e3e5ec;
 }
-.badge--warning {
-  color: #b25a12;
-  background: #fdecd3;
-}
+.badge--warning,
 .badge--pending {
-  color: #b25a12;
-  background: #fdecd3;
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
 }
-.badge--cancelled {
+.badge--cancelled,
+.badge--danger {
   color: var(--danger);
   background: var(--danger-bg);
+  border-color: var(--danger-border);
 }
 .badge--telegram {
   color: #1a6a94;
-  background: #e3f2fb;
+  background: var(--telegram-bg);
+  border-color: #cfe7f6;
 }
 .badge--whatsapp {
   color: #12724d;
-  background: #e2f4ec;
+  background: var(--whatsapp-bg);
+  border-color: #cbe9db;
 }
 .badge--web {
   color: #475569;
-  background: #eef0f5;
+  background: var(--web-bg);
+  border-color: #e3e5ec;
 }
 </style>

@@ -4,6 +4,7 @@ import { Plus } from 'lucide-vue-next'
 import AppButton from '../common/AppButton.vue'
 import { toFaqPayload } from '../../services/mappers'
 import { useAppStore } from '../../stores/app'
+import { friendlyErrorMessage } from '../../services/displayText'
 
 const emit = defineEmits(['confirmed', 'blocked'])
 const store = useAppStore()
@@ -42,7 +43,10 @@ async function submit() {
     emit('confirmed', created)
   } catch (saveError) {
     if (!active || requestBusinessId !== store.businessId) return
-    error.value = saveError.message || 'FAQ could not be saved.'
+    error.value = friendlyErrorMessage(
+      saveError,
+      'We could not save that FAQ. Please try again.',
+    )
     backendBlocked.value = [404, 502, 503].includes(saveError.status)
     if (backendBlocked.value) emit('blocked', error.value)
   } finally {
@@ -77,8 +81,8 @@ onBeforeUnmount(() => {
     <template v-else-if="store.faqError">
       <p class="error" role="alert">{{ store.faqError }}</p>
       <p class="blocked-note">
-        FAQ setup is ready in the frontend, but saving requires the gateway
-        chatbot-management proxy.
+        FAQs cannot be saved right now. You can skip this step and add answers
+        later from Settings.
       </p>
     </template>
     <form @submit.prevent="submit">
@@ -100,8 +104,8 @@ onBeforeUnmount(() => {
       </label>
       <p v-if="error" class="error" role="alert">{{ error }}</p>
       <p v-if="backendBlocked" class="blocked-note">
-        FAQ setup is ready in the frontend, but saving requires the gateway
-        chatbot-management proxy.
+        FAQs cannot be saved right now. You can skip this step and add answers
+        later from Settings.
       </p>
       <AppButton type="submit" :loading="saving" :disabled="!valid || saving">
         <Plus :size="16" />

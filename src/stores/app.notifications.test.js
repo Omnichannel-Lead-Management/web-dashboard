@@ -98,12 +98,16 @@ describe('notification store', () => {
     }
     await store.refreshNotifications()
     expect(store.notifications.map((item) => item.id)).toEqual(['n_1'])
-    expect(store.notificationsError).toBe('Gateway down')
+    expect(store.notificationsError).toBe(
+      'We could not load your notifications. Please try again.',
+    )
 
     gatewayApi.listNotifications = async () => ({ success: true })
     await store.refreshNotifications()
     expect(store.notifications.map((item) => item.id)).toEqual(['n_1'])
-    expect(store.notificationsError).toContain('invalid notifications')
+    expect(store.notificationsError).toBe(
+      'We could not load your notifications. Please try again.',
+    )
   })
 
   test('business switching clears rows and ignores stale responses', async () => {

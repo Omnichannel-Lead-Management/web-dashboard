@@ -16,13 +16,19 @@ describe('public web chat integration', () => {
   test('settings exposes a preview link to the public route', async () => {
     const settings = await read('../components/settings/WebChatSettings.vue')
     expect(settings).toContain("router.push('/web-chat')")
-    expect(settings).toContain('Secure tenant binding')
+    // Owners are told whether the channel is on, not how it is wired up.
+    expect(settings).toContain('webChatEnabled')
+    expect(settings).not.toContain('tenant binding')
+    expect(settings).not.toContain('Gateway route')
+    expect(settings).not.toContain('/ws/chat')
   })
 
-  test('disabled view gates socket creation and shows dependency copy', async () => {
+  test('disabled view gates socket creation and says so in plain language', async () => {
     const view = await read('../views/WebChatView.vue')
     expect(view).toContain('if (!webChatEnabled) return')
-    expect(view).toContain('live use requires secure tenant')
+    expect(view).toContain('Web chat is currently turned off')
+    expect(view).not.toContain('secure tenant')
+    expect(view).not.toContain('prototype mode')
   })
 
   test('retry uses the preserved wire value without adding another bubble', async () => {

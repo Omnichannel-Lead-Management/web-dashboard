@@ -133,6 +133,10 @@ describe('business profile store save', () => {
       error,
     )
     expect(store.business.name).toBe('Original')
-    expect(store.businessProfileError).toBe(error.message)
+    // The rejection keeps the platform detail; the owner sees plain language.
+    expect(store.businessProfileError).not.toContain('endpoint')
+    expect(store.businessProfileError).toBe(
+      'We could not find what you were looking for.',
+    )
   })
 })

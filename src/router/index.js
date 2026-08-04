@@ -24,7 +24,10 @@ const routes = [
     meta: { guest: true, publicChat: true },
   },
   { path: '/inbox', component: () => import('../views/InboxView.vue') },
-  { path: '/escalations', component: () => import('../views/EscalationsView.vue') },
+  {
+    path: '/escalations',
+    component: () => import('../views/EscalationsView.vue'),
+  },
   { path: '/leads', component: () => import('../views/LeadsView.vue') },
   {
     path: '/leads/:id',

@@ -58,7 +58,9 @@ const normalizedTags = computed(() =>
   tagsDraft.value.map((tag) => tag.trim()).filter(Boolean),
 )
 const tagsChanged = computed(
-  () => JSON.stringify(normalizedTags.value) !== JSON.stringify(props.lead.tags || []),
+  () =>
+    JSON.stringify(normalizedTags.value) !==
+    JSON.stringify(props.lead.tags || []),
 )
 const conversionValueValid = computed(() => {
   const value = normalizeConversionValue(conversionValueDraft.value)
@@ -88,7 +90,9 @@ const statusPatchState = computed(() =>
 function addTag() {
   const tag = tagInput.value.trim()
   if (!tag) return
-  if (!tagsDraft.value.some((item) => item.toLowerCase() === tag.toLowerCase())) {
+  if (
+    !tagsDraft.value.some((item) => item.toLowerCase() === tag.toLowerCase())
+  ) {
     tagsDraft.value.push(tag)
   }
   tagInput.value = ''
@@ -101,6 +105,11 @@ function removeTag(index) {
 function saveNotes() {
   if (!notesChanged.value || props.busyField) return
   emit('update', { kind: 'notes', patch: { notes: notesDraft.value.trim() } })
+}
+
+function cancelNotes() {
+  notesDraft.value = props.lead.notes || ''
+  editingNotes.value = false
 }
 
 function saveTags() {
@@ -146,7 +155,12 @@ function applyAssignment() {
       <div class="editor wide">
         <div class="editor-heading">
           <label for="lead-notes">Notes</label>
-          <button v-if="!editingNotes" type="button" class="text-action" @click="editingNotes = true">
+          <button
+            v-if="!editingNotes"
+            type="button"
+            class="text-action"
+            @click="editingNotes = true"
+          >
             Edit
           </button>
         </div>
@@ -157,7 +171,12 @@ function applyAssignment() {
           :readonly="!editingNotes"
         />
         <div v-if="editingNotes" class="actions">
-          <AppButton type="button" size="sm" variant="outline" @click="notesDraft = lead.notes || ''; editingNotes = false">
+          <AppButton
+            type="button"
+            size="sm"
+            variant="outline"
+            @click="cancelNotes"
+          >
             Cancel
           </AppButton>
           <AppButton
@@ -167,28 +186,49 @@ function applyAssignment() {
             :loading="busyField === 'notes'"
             :aria-busy="busyField === 'notes'"
             @click="saveNotes"
-          >{{ busyField === 'notes' ? 'Saving…' : 'Save notes' }}</AppButton>
+          >
+            {{ busyField === 'notes' ? 'Saving…' : 'Save notes' }}
+          </AppButton>
         </div>
       </div>
 
       <div class="editor wide">
         <label for="lead-tag">Tags</label>
         <div class="tags">
-          <span v-for="(tag, index) in tagsDraft" :key="`${tag}-${index}`" class="tag">
+          <span
+            v-for="(tag, index) in tagsDraft"
+            :key="`${tag}-${index}`"
+            class="tag"
+          >
             {{ tag }}
-            <button type="button" :aria-label="`Remove tag ${tag}`" @click="removeTag(index)">×</button>
+            <button
+              type="button"
+              :aria-label="`Remove tag ${tag}`"
+              @click="removeTag(index)"
+            >
+              ×
+            </button>
           </span>
         </div>
         <div class="inline-control">
-          <input id="lead-tag" v-model="tagInput" placeholder="Add a tag" @keydown.enter.prevent="addTag" />
-          <AppButton type="button" size="sm" variant="outline" @click="addTag">Add</AppButton>
+          <input
+            id="lead-tag"
+            v-model="tagInput"
+            placeholder="Add a tag"
+            @keydown.enter.prevent="addTag"
+          />
+          <AppButton type="button" size="sm" variant="outline" @click="addTag">
+            Add
+          </AppButton>
           <AppButton
             type="button"
             size="sm"
             :disabled="!tagsChanged || Boolean(busyField)"
             :loading="busyField === 'tags'"
             @click="saveTags"
-          >{{ busyField === 'tags' ? 'Saving…' : 'Save tags' }}</AppButton>
+          >
+            {{ busyField === 'tags' ? 'Saving…' : 'Save tags' }}
+          </AppButton>
         </div>
       </div>
 
@@ -198,10 +238,15 @@ function applyAssignment() {
         <AppButton
           type="button"
           size="sm"
-          :disabled="serviceInterestDraft.trim() === lead.serviceInterest || Boolean(busyField)"
+          :disabled="
+            serviceInterestDraft.trim() === lead.serviceInterest ||
+            Boolean(busyField)
+          "
           :loading="busyField === 'service'"
           @click="saveServiceInterest"
-        >{{ busyField === 'service' ? 'Saving…' : 'Save interest' }}</AppButton>
+        >
+          {{ busyField === 'service' ? 'Saving…' : 'Save interest' }}
+        </AppButton>
       </div>
 
       <div class="editor">
@@ -215,10 +260,14 @@ function applyAssignment() {
         <AppButton
           type="button"
           size="sm"
-          :disabled="(budgetDraft || null) === lead.budgetRange || Boolean(busyField)"
+          :disabled="
+            (budgetDraft || null) === lead.budgetRange || Boolean(busyField)
+          "
           :loading="busyField === 'budget'"
           @click="saveBudget"
-        >{{ busyField === 'budget' ? 'Saving…' : 'Save budget' }}</AppButton>
+        >
+          {{ busyField === 'budget' ? 'Saving…' : 'Save budget' }}
+        </AppButton>
       </div>
 
       <div class="editor">
@@ -250,24 +299,42 @@ function applyAssignment() {
           {{ statusPatchState.error }}
         </p>
         <div class="actions">
-          <AppButton v-if="statusEditorChanged" type="button" size="sm" variant="outline" @click="cancelStatus">
+          <AppButton
+            v-if="statusEditorChanged"
+            type="button"
+            size="sm"
+            variant="outline"
+            @click="cancelStatus"
+          >
             Cancel
           </AppButton>
           <AppButton
             type="button"
             size="sm"
-            :disabled="!statusEditorChanged || (statusDraft === 'converted' && !conversionValueValid) || Boolean(busyField)"
+            :disabled="
+              !statusEditorChanged ||
+              (statusDraft === 'converted' && !conversionValueValid) ||
+              Boolean(busyField)
+            "
             :loading="busyField === 'status'"
             @click="saveStatus"
-          >{{ busyField === 'status' ? 'Applying…' : 'Apply status' }}</AppButton>
+          >
+            {{ busyField === 'status' ? 'Applying…' : 'Apply status' }}
+          </AppButton>
         </div>
       </div>
 
       <div class="editor">
         <label for="lead-assignment">Assignment</label>
         <small>Current: {{ lead.agent }}</small>
-        <select id="lead-assignment" v-model="assignmentDraft" :disabled="Boolean(busyField)">
-          <option v-if="!lead.assignedAgentId" value="" disabled>Unassigned</option>
+        <select
+          id="lead-assignment"
+          v-model="assignmentDraft"
+          :disabled="Boolean(busyField)"
+        >
+          <option v-if="!lead.assignedAgentId" value="" disabled>
+            Unassigned
+          </option>
           <option value="auto">Auto-assign</option>
           <option v-for="agent in agents" :key="agent.id" :value="agent.id">
             {{ agent.name }} (current agent)
@@ -276,10 +343,16 @@ function applyAssignment() {
         <AppButton
           type="button"
           size="sm"
-          :disabled="!assignmentDraft || assignmentDraft === lead.assignedAgentId || Boolean(busyField)"
+          :disabled="
+            !assignmentDraft ||
+            assignmentDraft === lead.assignedAgentId ||
+            Boolean(busyField)
+          "
           :loading="busyField === 'assignment'"
           @click="applyAssignment"
-        >{{ busyField === 'assignment' ? 'Assigning…' : 'Update assignment' }}</AppButton>
+        >
+          {{ busyField === 'assignment' ? 'Assigning…' : 'Update assignment' }}
+        </AppButton>
       </div>
     </div>
   </section>

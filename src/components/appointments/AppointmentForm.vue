@@ -67,7 +67,11 @@ async function loadAvailability() {
   const requestDate = appointmentForm.date
   const requestId = ++availabilityRequestId
   clearSelectedSlot()
-  availability.value = { businessId: props.businessId, date: requestDate, slots: [] }
+  availability.value = {
+    businessId: props.businessId,
+    date: requestDate,
+    slots: [],
+  }
   availabilityError.value = ''
 
   if (!requestDate || !props.businessId) {
@@ -118,9 +122,8 @@ async function loadAvailability() {
   }
 }
 
-watch(
-  [() => appointmentForm.date, () => props.businessId],
-  () => loadAvailability(),
+watch([() => appointmentForm.date, () => props.businessId], () =>
+  loadAvailability(),
 )
 
 function selectSlot(slot) {
@@ -188,16 +191,30 @@ defineExpose({ refreshAvailabilityAfterConflict })
       <p v-else-if="availabilityLoading" class="slot-state" role="status">
         Loading available times…
       </p>
-      <div v-else-if="availabilityError" class="availability-error" role="alert">
+      <div
+        v-else-if="availabilityError"
+        class="availability-error"
+        role="alert"
+      >
         <span>{{ availabilityError }}</span>
-        <AppButton type="button" size="sm" variant="outline" @click="loadAvailability">
+        <AppButton
+          type="button"
+          size="sm"
+          variant="outline"
+          @click="loadAvailability"
+        >
           Retry
         </AppButton>
       </div>
       <p v-else-if="fullyBooked" class="slot-state">
         No available times for this date. This date is fully booked.
       </p>
-      <div v-else class="slots" role="group" aria-label="Available appointment times">
+      <div
+        v-else
+        class="slots"
+        role="group"
+        aria-label="Available appointment times"
+      >
         <button
           v-for="slot in availability.slots"
           :key="slot.startTime"

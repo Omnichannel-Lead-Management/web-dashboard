@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue'
-import { Search } from 'lucide-vue-next'
+import { MessagesSquare, Search } from 'lucide-vue-next'
 import ConversationListItem from './ConversationListItem.vue'
 import TriageQueue from './TriageQueue.vue'
 
@@ -33,12 +33,16 @@ const filteredConversations = computed(() =>
 )
 const escalated = computed(() =>
   props.escalationEnabled
-    ? filteredConversations.value.filter((conversation) => conversation.escalated)
+    ? filteredConversations.value.filter(
+        (conversation) => conversation.escalated,
+      )
     : [],
 )
 const regular = computed(() =>
   props.escalationEnabled
-    ? filteredConversations.value.filter((conversation) => !conversation.escalated)
+    ? filteredConversations.value.filter(
+        (conversation) => !conversation.escalated,
+      )
     : filteredConversations.value,
 )
 </script>
@@ -49,6 +53,7 @@ const regular = computed(() =>
       <label>
         <Search :size="18" />
         <input
+          type="search"
           aria-label="Search conversations"
           placeholder="Search conversations"
           :value="search"
@@ -80,8 +85,22 @@ const regular = computed(() =>
         :active="selectedId === conversation.id"
         @click="emit('select', conversation.id)"
       />
-      <div v-if="!filteredConversations.length" class="empty">
-        No conversations match.
+      <div v-if="!filteredConversations.length" class="empty-state">
+        <span class="empty-icon"><MessagesSquare :size="22" /></span>
+        <h3>
+          {{
+            conversations.length
+              ? 'Nothing matches that'
+              : 'No conversations yet'
+          }}
+        </h3>
+        <p>
+          {{
+            conversations.length
+              ? 'Try clearing your search or switching filter.'
+              : 'New customer messages will appear here as soon as they arrive.'
+          }}
+        </p>
       </div>
     </div>
   </aside>
@@ -97,7 +116,9 @@ const regular = computed(() =>
   border-right: 1px solid #e7e9f0;
 }
 .tools {
+  flex: none;
   padding: 20px 20px 14px;
+  background: #fafafc;
 }
 .tools label {
   min-height: 48px;
@@ -105,10 +126,17 @@ const regular = computed(() =>
   align-items: center;
   gap: 10px;
   padding: 0 14px;
-  color: #98a2b3;
-  background: #fff;
+  color: var(--muted);
+  background: var(--surface);
   border: 1px solid #e1e4ec;
   border-radius: 12px;
+  transition:
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.tools label:focus-within {
+  border-color: var(--primary);
+  box-shadow: var(--ring);
 }
 .tools input {
   border: 0;
@@ -117,21 +145,33 @@ const regular = computed(() =>
   background: transparent;
   font-size: 14px;
 }
+.tools input:focus {
+  box-shadow: none;
+}
 .filters {
   display: flex;
   gap: 8px;
   margin-top: 15px;
 }
 .filters button {
-  padding: 7px 13px;
-  color: #3b4054;
-  background: #fff;
+  padding: 7px 14px;
+  color: var(--text-2);
+  background: var(--surface);
   border: 1px solid #dfe2ea;
-  border-radius: 99px;
-  font-size: 12.5px;
-  font-weight: 600;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  transition:
+    background var(--dur) var(--ease),
+    border-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
 }
-.filters button.active {
+.filters button:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+.filters button.active,
+.filters button.active:hover {
   color: #fff;
   background: var(--primary);
   border-color: var(--primary);

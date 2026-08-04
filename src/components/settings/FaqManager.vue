@@ -17,6 +17,7 @@ import {
   faqPayloadWithPendingKeyword,
   toFaqPayload,
 } from '../../services/mappers'
+import { friendlyErrorMessage } from '../../services/displayText'
 
 const QUESTION_LIMIT = 160
 const ANSWER_LIMIT = 1000
@@ -101,7 +102,10 @@ async function loadFaqs() {
   try {
     await store.refreshFaqs()
   } catch (error) {
-    loadError.value = error.message || 'FAQs could not be loaded.'
+    loadError.value = friendlyErrorMessage(
+      error,
+      'We could not load your FAQs. Please try again.',
+    )
   }
 }
 
@@ -182,7 +186,10 @@ async function saveFaq() {
     }
     closeForm()
   } catch (error) {
-    formError.value = error.message || 'FAQ could not be saved.'
+    formError.value = friendlyErrorMessage(
+      error,
+      'We could not save that FAQ. Please try again.',
+    )
   } finally {
     saving.value = false
   }

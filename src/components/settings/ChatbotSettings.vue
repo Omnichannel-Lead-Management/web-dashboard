@@ -5,6 +5,7 @@ import AppButton from '../common/AppButton.vue'
 import TemplatePicker from './TemplatePicker.vue'
 import { useAppStore } from '../../stores/app'
 import { toChatbotConfigPatch } from '../../services/mappers'
+import { friendlyErrorMessage } from '../../services/displayText'
 
 const MESSAGE_LIMIT = 1000
 const props = defineProps({
@@ -91,7 +92,10 @@ async function saveMessages() {
     })
     resetDrafts()
   } catch (error) {
-    saveError.value = error.message || 'Chatbot messages could not be saved.'
+    saveError.value = friendlyErrorMessage(
+      error,
+      'We could not save your messages. Please try again.',
+    )
   }
 }
 
@@ -175,7 +179,7 @@ onMounted(loadConfig)
         <label class="field">
           Welcome message
           <small v-if="props.showDraftsWhenUnavailable" class="draft-only">
-            Draft only — backend persistence is not available yet
+            Draft only — this message cannot be saved right now
           </small>
           <textarea
             v-model="welcomeDraft"
@@ -208,7 +212,7 @@ onMounted(loadConfig)
         <label class="field">
           Escalation message
           <small v-if="props.showDraftsWhenUnavailable" class="draft-only">
-            Draft only — backend persistence is not available yet
+            Draft only — this message cannot be saved right now
           </small>
           <textarea
             v-model="escalationDraft"

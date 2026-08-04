@@ -23,7 +23,11 @@ export const appointmentService = {
   },
 
   async updateStatus(id, businessId, status) {
-    const result = await gatewayApi.updateAppointmentStatus(id, businessId, status)
+    const result = await gatewayApi.updateAppointmentStatus(
+      id,
+      businessId,
+      status,
+    )
     return result.data ? mapAppointment(result.data) : null
   },
 }

@@ -23,9 +23,14 @@ describe('image attachment integration', () => {
       read('../components/inbox/ChatComposer.vue'),
     ])
     expect(view).toContain('!imageAttachmentsEnabled')
-    expect(settings).toContain('POST /api/upload-image')
-    expect(inbox).toContain('agent media-send API')
+    expect(settings).toContain('imageAttachmentsEnabled')
+    expect(settings).toContain('IMAGE_ATTACHMENT_MAX_BYTES')
+    expect(inbox).toContain('coming soon')
     expect(view).not.toContain('localStorage')
+    // Business owners must not be shown platform routes or transport detail.
+    expect(settings).not.toContain('/api/upload-image')
+    expect(settings).not.toContain('Gateway dependency')
+    expect(inbox).not.toContain('media-send API')
   })
 
   test('image retry reuses an uploaded URL and does not append another bubble', async () => {
@@ -54,16 +59,12 @@ describe('image attachment integration', () => {
   })
 
   test('image failure state is scoped to the currently rendered URL', async () => {
-    const bubble = await read(
-      '../components/web-chat/WebChatMessageBubble.vue',
-    )
+    const bubble = await read('../components/web-chat/WebChatMessageBubble.vue')
     expect(bubble).toContain("const failedImageUrl = ref('')")
-    expect(bubble).toContain(
-      'failedImageUrl.value === props.message.imageUrl',
-    )
+    expect(bubble).toContain('failedImageUrl.value === props.message.imageUrl')
     expect(bubble).toContain(':key="message.imageUrl"')
     expect(bubble).toContain(':data-image-url="message.imageUrl"')
-    expect(bubble).toContain('failedImageUrl.value = \'\'')
+    expect(bubble).toContain("failedImageUrl.value = ''")
     expect(bubble).toContain(
       'if (!failedUrl || failedUrl !== props.message.imageUrl) return',
     )
@@ -75,9 +76,7 @@ describe('image attachment integration', () => {
   test('inbox image failure state is URL-scoped and keyed', async () => {
     const message = await read('../components/inbox/ChatMessage.vue')
     expect(message).toContain("const failedImageUrl = ref('')")
-    expect(message).toContain(
-      'failedImageUrl.value === props.message.imageUrl',
-    )
+    expect(message).toContain('failedImageUrl.value === props.message.imageUrl')
     expect(message).toContain(':key="message.imageUrl"')
     expect(message).toContain(':data-image-url="message.imageUrl"')
     expect(message).toContain(

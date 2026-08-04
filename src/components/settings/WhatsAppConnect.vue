@@ -20,6 +20,7 @@ import {
   resolveWhatsAppInitialState,
   shouldPollWhatsApp,
 } from '../../services/whatsappConnection'
+import { friendlyErrorMessage } from '../../services/displayText'
 
 const emit = defineEmits(['connection-change'])
 const store = useAppStore()
@@ -29,6 +30,20 @@ const qrImage = ref('')
 const instanceName = ref('')
 const connectionStatus = ref('Not connected')
 const refreshingQr = ref(false)
+
+/** WhatsApp reports machine states; owners need plain words. */
+const CONNECTION_LABELS = {
+  open: 'Connected',
+  connected: 'Connected',
+  connecting: 'Connecting…',
+  close: 'Not connected',
+  closed: 'Not connected',
+}
+const connectionLabel = computed(
+  () =>
+    CONNECTION_LABELS[String(connectionStatus.value).toLowerCase()] ||
+    'Waiting for you to scan',
+)
 
 let mounted = true
 let generation = 0
@@ -72,7 +87,10 @@ function enterError(error, requestGeneration, requestBusinessId) {
   state.value = 'error'
   emit('connection-change', false)
   qrImage.value = ''
-  errorMessage.value = error?.message || 'WhatsApp connection failed'
+  errorMessage.value = friendlyErrorMessage(
+    error,
+    'We could not set up the WhatsApp connection. Please try again.',
+  )
 }
 
 async function confirmConnected(mapped, requestGeneration, requestBusinessId) {
@@ -257,9 +275,8 @@ onBeforeUnmount(() => {
         conversations in this dashboard.
       </p>
       <p v-if="activeInstanceName" class="existing-instance">
-        Existing instance
-        <b>{{ activeInstanceName }}</b>
-        is not currently connected. Continue to request a new QR code.
+        This business was linked to WhatsApp before but is not connected right
+        now. Continue to get a new QR code.
       </p>
       <AppButton @click="connect">Connect WhatsApp</AppButton>
     </template>
@@ -294,12 +311,12 @@ onBeforeUnmount(() => {
             <li>Scan the QR code</li>
           </ol>
           <p class="status-text">
-            Connection status:
-            <b>{{ connectionStatus }}</b>
+            Status:
+            <b>{{ connectionLabel }}</b>
           </p>
           <p class="expiry">
-            Expiry countdown unavailable: the gateway does not provide a QR
-            expiry time. Refresh manually if WhatsApp says it expired.
+            QR codes expire after a few minutes. If WhatsApp says the code has
+            expired, choose Refresh QR for a new one.
           </p>
         </div>
       </div>
@@ -319,16 +336,13 @@ onBeforeUnmount(() => {
         <CheckCircle2 :size="28" />
         <div>
           <h2>WhatsApp connected</h2>
-          <p v-if="activeInstanceName">
-            Instance
-            <b>{{ activeInstanceName }}</b>
-          </p>
           <p>Customer messages can now arrive through WhatsApp.</p>
         </div>
       </div>
       <p class="disconnect-note">
-        Disconnect is not available because the gateway does not expose a
-        WhatsApp disconnect operation.
+        To stop receiving WhatsApp messages, unlink this dashboard from
+        <b>Linked devices</b>
+        in your WhatsApp app.
       </p>
     </template>
 

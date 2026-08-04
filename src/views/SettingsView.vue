@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Send, MessageCircleMore, Globe2 } from 'lucide-vue-next'
+import { Check, Send, MessageCircleMore, Globe2, Radio } from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
 import SettingsNavigation from '../components/settings/SettingsNavigation.vue'
 import FaqManager from '../components/settings/FaqManager.vue'
@@ -15,6 +15,7 @@ import AnalyticsSettings from '../components/settings/AnalyticsSettings.vue'
 import AppButton from '../components/common/AppButton.vue'
 import { useAppStore } from '../stores/app'
 import { activeBusinessForTenant } from '../services/businessProfile'
+import { friendlyErrorMessage } from '../services/displayText'
 import { webChatEnabled } from '../config'
 
 const store = useAppStore()
@@ -30,7 +31,10 @@ async function loadBusiness() {
   try {
     await store.refreshBusiness()
   } catch (error) {
-    store.notify(error.message || 'Failed to load business', 'error')
+    store.notify(
+      friendlyErrorMessage(error, 'We could not load your business details.'),
+      'error',
+    )
   }
 }
 
@@ -47,14 +51,16 @@ const channels = computed(() => [
   {
     name: 'WhatsApp',
     connected: Boolean(activeBusiness.value?.whatsapp_connected),
-    detail: activeBusiness.value?.whatsapp_instance_name
-      ? `Instance ${activeBusiness.value.whatsapp_instance_name}`
+    detail: activeBusiness.value?.whatsapp_connected
+      ? 'Receiving customer messages'
       : 'Scan a QR to link a number',
   },
   {
     name: 'Web chat',
     connected: webChatEnabled,
-    detail: webChatEnabled ? 'Prototype enabled' : 'Preview unavailable',
+    detail: webChatEnabled
+      ? 'Live on your website'
+      : 'Turned off for this workspace',
   },
 ])
 watch(
@@ -84,10 +90,15 @@ function selectSection(sectionId) {
         <SettingsNavigation :active="activeSection" @select="selectSection" />
         <section class="card content">
           <template v-if="activeSection === 'channels'">
-            <h2>Connected channels</h2>
-            <p class="intro">
-              Connect the places where your customers already message you.
-            </p>
+            <header class="section-head">
+              <span class="section-icon"><Radio :size="22" /></span>
+              <div>
+                <h2>Connected channels</h2>
+                <p>
+                  Connect the places where your customers already message you.
+                </p>
+              </div>
+            </header>
             <article
               v-for="channel in channels"
               :key="channel.name"
@@ -101,8 +112,8 @@ function selectSection(sectionId) {
               <div>
                 <b>{{ channel.name }}</b>
                 <small :class="{ connected: channel.connected }">
-                  {{ channel.connected ? '✓ Connected · ' : ''
-                  }}{{ channel.detail }}
+                  <Check v-if="channel.connected" :size="13" />
+                  {{ channel.detail }}
                 </small>
               </div>
               <AppButton
@@ -162,18 +173,18 @@ function selectSection(sectionId) {
   gap: 19px;
 }
 .content {
-  padding: 25px;
+  padding: 26px;
   max-width: 760px;
   width: 100%;
   min-height: 520px;
 }
 .content h2 {
-  font-size: 21px;
+  font-size: var(--fs-xl);
   margin-bottom: 6px;
 }
 .intro {
   color: var(--muted);
-  font-size: 13.5px;
+  font-size: var(--fs-base);
   margin-bottom: 22px;
 }
 .channel {
@@ -181,25 +192,33 @@ function selectSection(sectionId) {
   align-items: center;
   gap: 13px;
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: var(--radius);
+  padding: 15px;
   margin-bottom: 10px;
+  transition:
+    border-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.channel:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-xs);
 }
 .channel > span {
   width: 42px;
   height: 42px;
+  flex: none;
   border-radius: 11px;
   display: grid;
   place-items: center;
-  background: #e3f2fb;
+  background: var(--telegram-bg);
   color: var(--telegram);
 }
 .channel > span.whatsapp {
-  background: #e2f4ec;
+  background: var(--whatsapp-bg);
   color: #12724d;
 }
 .channel > span.web {
-  background: #eef0f5;
+  background: var(--web-bg);
   color: var(--web);
 }
 .channel > span svg {
@@ -209,18 +228,22 @@ function selectSection(sectionId) {
   display: flex;
   flex: 1;
   flex-direction: column;
+  min-width: 0;
 }
 .channel b {
-  font-size: 13.5px;
+  font-size: var(--fs-base);
 }
 .channel small {
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-xs);
   color: var(--muted);
   margin-top: 3px;
 }
 .channel small.connected {
   color: var(--success);
-  font-weight: 600;
+  font-weight: 700;
 }
 .content h3 {
   font-size: 13.5px;

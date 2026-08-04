@@ -58,7 +58,7 @@ const steps = [
     label: 'Review',
     title: 'Review setup progress',
     description:
-      'See what is confirmed, skipped, or waiting on backend support.',
+      'See what is done, what you skipped, and what still needs you.',
   },
 ]
 
@@ -105,7 +105,7 @@ function statusFor(step) {
   if (isComplete(step)) return 'Completed'
   if (store.onboardingProgress.skippedSteps.includes(step)) return 'Skipped'
   if (store.onboardingProgress.blockedSteps.includes(step))
-    return 'Blocked by backend'
+    return 'Needs attention'
   return 'Not completed'
 }
 
@@ -126,22 +126,22 @@ const reviewRows = computed(() => [
     label: 'FAQ created',
     status: statusFor(3),
     detail: faqConfirmed.value
-      ? 'Confirmed by the gateway'
-      : 'No confirmed FAQ',
+      ? 'Your chatbot has an answer to work with'
+      : 'No FAQ saved yet',
   },
   {
     label: 'Chatbot configured',
     status: statusFor(4),
     detail: chatbotConfirmed.value
-      ? 'Confirmed config loaded'
-      : 'Gateway proxy unavailable',
+      ? 'Automatic replies are set up'
+      : 'Chatbot settings are not available right now',
   },
   {
     label: 'Template attached',
     status: statusFor(5),
     detail: templateConfirmed.value
-      ? 'Confirmed attached flow exists'
-      : 'No confirmed flow',
+      ? 'A conversation template is in use'
+      : 'No template chosen yet',
   },
 ])
 
@@ -213,13 +213,13 @@ async function loadFaqStep(businessId) {
 }
 
 function saveAndExit() {
-  store.notify('Setup progress saved on this browser.')
+  store.notify('Setup progress saved.')
   router.push('/inbox')
 }
 
 function finish() {
   store.finishOnboardingLocally()
-  store.notify('Setup progress saved on this browser.')
+  store.notify('Setup progress saved.')
   router.push('/inbox')
 }
 

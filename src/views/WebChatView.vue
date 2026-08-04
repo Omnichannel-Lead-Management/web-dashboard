@@ -295,17 +295,9 @@ onUnmounted(() => {
 
 <template>
   <main class="web-chat-page">
-    <WebChatShell
-      :prototype="webChatEnabled"
-      @new-conversation="startNewConversation"
-    >
+    <WebChatShell :live="canSend" @new-conversation="startNewConversation">
       <div v-if="!webChatEnabled" class="capability-notice" role="note">
-        <b>Preview environment</b>
-        Web chat is ready in the dashboard, but live use requires secure tenant
-        binding in the gateway.
-      </div>
-      <div v-else class="prototype-notice" role="note">
-        Preview environment — this customer chat is currently in prototype mode.
+        Web chat is currently turned off, so messages cannot be sent.
       </div>
       <WebChatConnectionState
         :state="connectionState"
@@ -350,22 +342,15 @@ onUnmounted(() => {
     radial-gradient(circle at top left, var(--primary-soft), transparent 38%),
     #f6f7fb;
 }
-.capability-notice,
-.prototype-notice {
-  padding: 9px 16px;
-  font-size: 11px;
+.capability-notice {
+  padding: 10px 16px;
+  font-size: var(--fs-xs);
+  font-weight: 600;
   line-height: 1.45;
   text-align: center;
-  color: var(--text-2);
-  background: #fff8e3;
-  border-bottom: 1px solid #f1e5bd;
-}
-.capability-notice b {
-  margin-right: 4px;
-}
-.prototype-notice {
-  background: #f5f3ff;
-  border-color: #e3ddff;
+  color: var(--warning);
+  background: var(--warning-bg);
+  border-bottom: 1px solid var(--warning-border);
 }
 @media (max-width: 600px) {
   .web-chat-page {

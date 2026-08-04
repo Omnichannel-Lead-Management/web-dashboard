@@ -58,7 +58,7 @@ function updateConnection(provider, connected) {
       />
     </div>
     <p class="limitation">
-      Telegram live status and disconnect are not available through the gateway.
+      To disconnect Telegram later, revoke the bot's token in @BotFather.
     </p>
   </section>
 </template>

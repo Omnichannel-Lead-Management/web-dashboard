@@ -153,11 +153,9 @@ onBeforeUnmount(() => {
         </div>
       </div>
       <p class="limitation">
-        Connection is based on saved gateway configuration; live bot status was
-        not checked because the gateway has no Telegram status endpoint.
-      </p>
-      <p class="limitation">
-        Disconnect is not currently supported by the gateway.
+        To stop receiving Telegram messages here, revoke this bot's token in
+        <b>@BotFather</b>
+        and connect a new bot when you are ready.
       </p>
     </template>
 
@@ -221,7 +219,8 @@ onBeforeUnmount(() => {
         </div>
         <small class="security">
           <ShieldCheck :size="14" />
-          The token is sent only to the gateway and is cleared after connection.
+          Your token is sent over a secure connection and cleared from this page
+          once the bot is linked.
         </small>
         <div class="actions">
           <AppButton type="submit" :disabled="connectDisabled">

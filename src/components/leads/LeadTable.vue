@@ -2,6 +2,7 @@
 import AppAvatar from '../common/AppAvatar.vue'
 import AppBadge from '../common/AppBadge.vue'
 import LeadStatusBadge from './LeadStatusBadge.vue'
+import { shortReference } from '../../services/displayText'
 
 defineProps({
   leads: {
@@ -52,7 +53,7 @@ defineEmits(['toggle-selection'])
             <AppAvatar :initials="l.initials" :channel="l.channel" />
             <span>
               <strong>{{ l.name }}</strong>
-              <small class="mono">#{{ l.id }}</small>
+              <small class="mono">{{ shortReference(l.id) }}</small>
             </span>
           </td>
           <td>
@@ -80,24 +81,34 @@ table {
   min-width: 800px;
 }
 th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   text-align: left;
   color: var(--muted);
-  font-size: 10.5px;
+  font-size: var(--fs-2xs);
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 12px 17px;
+  letter-spacing: 0.06em;
+  padding: 13px 17px;
   background: #fbfbfd;
+  border-bottom: 1px solid var(--border-soft);
 }
 td {
   padding: 13px 17px;
-  border-top: 1px solid #eef0f5;
-  font-size: 12.5px;
+  border-top: 1px solid var(--border-soft);
+  font-size: var(--fs-sm);
 }
 tbody tr {
   cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
 }
 tbody tr:hover {
   background: #fafaff;
+}
+tbody tr:focus-visible {
+  outline: none;
+  background: var(--primary-soft);
 }
 td:nth-child(2) {
   display: flex;

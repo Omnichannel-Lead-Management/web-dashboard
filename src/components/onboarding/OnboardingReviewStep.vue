@@ -12,7 +12,7 @@ defineProps({ rows: { type: Array, required: true } })
 const tone = {
   Completed: 'success',
   Skipped: 'neutral',
-  'Blocked by backend': 'warning',
+  'Needs attention': 'warning',
   'Not completed': 'neutral',
 }
 </script>
@@ -27,7 +27,7 @@ const tone = {
       />
       <CircleSlash2 v-else-if="row.status === 'Skipped'" :size="21" />
       <LockKeyhole
-        v-else-if="row.status === 'Blocked by backend'"
+        v-else-if="row.status === 'Needs attention'"
         :size="21"
         class="blocked"
       />
@@ -39,8 +39,8 @@ const tone = {
       <AppBadge :tone="tone[row.status]">{{ row.status }}</AppBadge>
     </article>
     <p class="local-note">
-      Finishing saves this progress on this browser only. The backend has no
-      onboarding-completion field.
+      Finishing remembers your setup progress on this device. Anything you have
+      already connected or saved stays with your business.
     </p>
   </section>
 </template>

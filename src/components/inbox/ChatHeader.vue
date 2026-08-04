@@ -4,6 +4,7 @@ import { ArrowLeft } from 'lucide-vue-next'
 import AppAvatar from '../common/AppAvatar.vue'
 import AppBadge from '../common/AppBadge.vue'
 import AppButton from '../common/AppButton.vue'
+import { shortReference } from '../../services/displayText'
 
 defineProps({
   conversation: {
@@ -40,24 +41,38 @@ const emit = defineEmits(['claim', 'release', 'back'])
           {{ conversation.language }}
         </AppBadge>
       </span>
-      <small class="mono">
+      <small>
         {{ conversation.handle }} ·
         <RouterLink :to="`/leads/${conversation.id}`">
-          Lead #{{ conversation.id }}
+          View lead
+          <span class="mono">{{ shortReference(conversation.id) }}</span>
         </RouterLink>
       </small>
     </div>
     <div class="actions">
       <AppBadge
         v-if="
-          escalationEnabled && conversation.id && (conversation.escalated || conversation.claimed)
+          escalationEnabled &&
+          conversation.id &&
+          (conversation.escalated || conversation.claimed)
         "
         :tone="conversation.claimed ? 'success' : 'warning'"
       >
-        {{ conversation.claimed ? 'Claimed by you' : conversation.claimedByOther ? 'Claimed by another agent' : 'Queued for agent' }}
+        {{
+          conversation.claimed
+            ? 'Claimed by you'
+            : conversation.claimedByOther
+              ? 'Claimed by another agent'
+              : 'Queued for agent'
+        }}
       </AppBadge>
       <AppButton
-        v-if="escalationEnabled && conversation.id && !conversation.claimed && !conversation.claimedByOther"
+        v-if="
+          escalationEnabled &&
+          conversation.id &&
+          !conversation.claimed &&
+          !conversation.claimedByOther
+        "
         class="claim"
         @click="$emit('claim')"
       >

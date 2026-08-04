@@ -76,7 +76,10 @@ describe('Telegram connection helpers', () => {
         throw new Error('metadata unavailable')
       }),
     ).toBe(false)
-    expect(connection).toEqual({ state: 'connected', botUsername: 'sample_bot' })
+    expect(connection).toEqual({
+      state: 'connected',
+      botUsername: 'sample_bot',
+    })
     expect(await refreshTelegramBusinessBestEffort(async () => {})).toBe(true)
   })
 })

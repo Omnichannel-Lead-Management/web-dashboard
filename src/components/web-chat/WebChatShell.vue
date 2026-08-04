@@ -1,12 +1,17 @@
 <script setup>
 import WebChatHeader from './WebChatHeader.vue'
-defineProps({ prototype: { type: Boolean, default: false } })
+
+defineProps({
+  live: { type: Boolean, default: false },
+  businessName: { type: String, default: '' },
+})
 defineEmits(['new-conversation'])
 </script>
 <template>
   <section class="shell">
     <WebChatHeader
-      :prototype="prototype"
+      :live="live"
+      :business-name="businessName"
       @new-conversation="$emit('new-conversation')"
     />
     <slot />
@@ -20,10 +25,10 @@ defineEmits(['new-conversation'])
   display: flex;
   flex-direction: column;
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: var(--radius-xl);
   overflow: hidden;
-  background: #fff;
-  box-shadow: 0 20px 60px rgba(33, 37, 54, 0.12);
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
 }
 @media (max-width: 600px) {
   .shell {

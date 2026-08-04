@@ -1,23 +1,43 @@
 <script setup>
 import { computed } from 'vue'
+
 const props = defineProps({
   title: { type: String, required: true },
   points: { type: Array, default: () => [] },
 })
+
 const max = computed(() =>
   Math.max(1, ...props.points.map((point) => point.value)),
 )
+const total = computed(() =>
+  props.points.reduce((sum, point) => sum + (point.value || 0), 0),
+)
+
+/** `2026-08-04` reads as `Aug 4` on the axis. */
+function axisLabel(date) {
+  const parsed = new Date(date)
+  if (!Number.isFinite(parsed.getTime())) return date
+  return parsed.toLocaleDateString([], { month: 'short', day: 'numeric' })
+}
 </script>
+
 <template>
   <section v-if="points.length" class="card trend">
-    <h2>{{ title }}</h2>
+    <header>
+      <h2>{{ title }}</h2>
+      <span class="total">{{ total }} total</span>
+    </header>
+
     <div class="plot" aria-hidden="true">
-      <div v-for="point in points" :key="point.date">
+      <div v-for="point in points" :key="point.date" class="column">
+        <span class="value">{{ point.value }}</span>
         <i :style="{ height: `${Math.max(3, (point.value / max) * 100)}%` }" />
-        <span>{{ point.date.slice(5) }}</span>
+        <span class="axis">{{ axisLabel(point.date) }}</span>
       </div>
     </div>
-    <table>
+
+    <!-- Same numbers as the chart, for screen readers. -->
+    <table class="visually-hidden">
       <caption>{{ title }} data</caption>
       <thead>
         <tr>
@@ -34,54 +54,76 @@ const max = computed(() =>
     </table>
   </section>
 </template>
+
 <style scoped>
 .trend {
-  padding: 18px;
+  padding: 20px;
+}
+.trend header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 .trend h2 {
-  margin: 0 0 14px;
-  font-size: 16px;
+  margin: 0;
+  font-size: var(--fs-lg);
 }
+.total {
+  color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
 .plot {
-  height: 150px;
+  height: 168px;
   display: flex;
   align-items: end;
-  gap: 6px;
+  gap: 8px;
+  padding-bottom: 2px;
   overflow-x: auto;
   border-bottom: 1px solid var(--border);
 }
-.plot div {
+.column {
   height: 100%;
-  min-width: 34px;
+  min-width: 38px;
+  flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: end;
   align-items: center;
   gap: 5px;
 }
-.plot i {
-  width: 18px;
-  background: var(--primary);
-  border-radius: 5px 5px 0 0;
-}
-.plot span {
-  font-size: 9px;
-  color: var(--muted);
-}
-table {
+.column i {
   width: 100%;
-  margin-top: 14px;
-  border-collapse: collapse;
+  max-width: 26px;
+  background: linear-gradient(180deg, var(--primary) 0%, #6d67ec 100%);
+  border-radius: 6px 6px 0 0;
+  transition: height var(--dur) var(--ease);
 }
-caption {
-  text-align: left;
+.column .value {
+  font-size: var(--fs-2xs);
   font-weight: 700;
-  padding: 8px 0;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
 }
-th,
-td {
-  text-align: left;
-  padding: 7px;
-  border-bottom: 1px solid var(--border);
+.column .axis {
+  font-size: var(--fs-2xs);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 </style>

@@ -25,8 +25,8 @@ function submitMessage() {
         type="button"
         class="attach"
         disabled
-        aria-label="Attach image (requires agent media-send API)"
-        title="Image sending requires the agent media-send API"
+        aria-label="Attach an image — not available yet"
+        title="Sending images from the dashboard is coming soon"
       >
         <ImagePlus :size="17" />
       </button>
@@ -51,7 +51,8 @@ function submitMessage() {
       </button>
     </div>
     <p class="media-note">
-      Image replies require gateway agent media-send support.
+      You can receive photos from customers today. Sending them from here is
+      coming soon.
     </p>
   </form>
 </template>

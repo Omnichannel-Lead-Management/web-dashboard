@@ -10,6 +10,7 @@ import {
   notificationCenterEnabled,
 } from '../config'
 import { mapAnalyticsResponse } from '../services/analytics'
+import { friendlyErrorMessage } from '../services/displayText'
 import {
   analyticsRangeKey as createAnalyticsRangeKey,
   isValidAnalyticsDateRange,
@@ -283,8 +284,10 @@ export const useAppStore = defineStore('app', () => {
           requestId === analyticsRequestId &&
           requestBusinessId === businessId.value
         )
-          analyticsError.value =
-            error.message || 'Analytics could not be loaded'
+          analyticsError.value = friendlyErrorMessage(
+            error,
+            'We could not load your report. Please try again.',
+          )
         throw error
       })
       .finally(() => {
@@ -542,8 +545,10 @@ export const useAppStore = defineStore('app', () => {
           requestId === escalationRefreshId &&
           revisionAtStart === escalationQueueRevision
         )
-          escalationsError.value =
-            error.message || 'Escalation queue could not be loaded'
+          escalationsError.value = friendlyErrorMessage(
+            error,
+            'We could not load the escalation queue. Please try again.',
+          )
         throw error
       })
       .finally(() => {
@@ -696,7 +701,13 @@ export const useAppStore = defineStore('app', () => {
         selectedConversationId.value = mapped[0].id
       }
     } catch (error) {
-      notify(error.message || 'Failed to load inbox', 'error')
+      notify(
+        friendlyErrorMessage(
+          error,
+          'We could not load your inbox. Please try again.',
+        ),
+        'error',
+      )
     } finally {
       loadingInbox.value = false
     }
@@ -734,7 +745,13 @@ export const useAppStore = defineStore('app', () => {
         )
       }
     } catch (error) {
-      notify(error.message || 'Failed to load messages', 'error')
+      notify(
+        friendlyErrorMessage(
+          error,
+          'We could not load these messages. Please try again.',
+        ),
+        'error',
+      )
     }
   }
 
@@ -1387,8 +1404,17 @@ export const useAppStore = defineStore('app', () => {
         businessId.value !== requestBusinessId
       )
         return null
-      leadListError.value = error.message || 'Failed to load leads'
-      notify(error.message || 'Failed to load leads', 'error')
+      leadListError.value = friendlyErrorMessage(
+        error,
+        'We could not load your leads. Please try again.',
+      )
+      notify(
+        friendlyErrorMessage(
+          error,
+          'We could not load your leads. Please try again.',
+        ),
+        'error',
+      )
       return null
     } finally {
       if (
@@ -1432,7 +1458,10 @@ export const useAppStore = defineStore('app', () => {
         businessId.value !== requestBusinessId
       )
         return null
-      leadDetailError.value = error.message || 'Failed to load lead'
+      leadDetailError.value = friendlyErrorMessage(
+        error,
+        'We could not load this lead. Please try again.',
+      )
       throw error
     } finally {
       if (
@@ -1532,7 +1561,13 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion === leadSessionVersion.value &&
         businessId.value === requestBusinessId
       )
-        notify(error.message || 'Failed to update lead', 'error')
+        notify(
+          friendlyErrorMessage(
+            error,
+            'We could not save that change. Please try again.',
+          ),
+          'error',
+        )
       activeLeadMutations.delete(mutationKey)
       throw error
     }
@@ -1604,7 +1639,13 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion === leadSessionVersion.value &&
         businessId.value === requestBusinessId
       )
-        notify(error.message || 'Failed to assign lead', 'error')
+        notify(
+          friendlyErrorMessage(
+            error,
+            'We could not assign this lead. Please try again.',
+          ),
+          'error',
+        )
       activeLeadMutations.delete(mutationKey)
       throw error
     }
@@ -1651,7 +1692,13 @@ export const useAppStore = defineStore('app', () => {
       const result = await gatewayApi.listAppointments(businessId.value)
       appointments.value = (result.data || []).map(mapAppointment)
     } catch (error) {
-      notify(error.message || 'Failed to load appointments', 'error')
+      notify(
+        friendlyErrorMessage(
+          error,
+          'We could not load your appointments. Please try again.',
+        ),
+        'error',
+      )
     } finally {
       loadingAppointments.value = false
     }
@@ -1667,7 +1714,13 @@ export const useAppStore = defineStore('app', () => {
       return created.data
     } catch (error) {
       // 409 means the slot went while the form was open — say so, do not swallow it.
-      notify(error.message || 'Failed to book appointment', 'error')
+      notify(
+        friendlyErrorMessage(
+          error,
+          'We could not book that appointment. Please try again.',
+        ),
+        'error',
+      )
       throw error
     }
   }
@@ -1699,7 +1752,13 @@ export const useAppStore = defineStore('app', () => {
       return appointment
     } catch (error) {
       appointment.status = originalStatus
-      notify(error.message || 'Failed to update appointment', 'error')
+      notify(
+        friendlyErrorMessage(
+          error,
+          'We could not update that appointment. Please try again.',
+        ),
+        'error',
+      )
       throw error
     }
   }
@@ -1758,8 +1817,10 @@ export const useAppStore = defineStore('app', () => {
         sessionVersion === businessSessionVersion &&
         businessId.value === requestBusinessId
       ) {
-        businessProfileError.value =
-          error.message || 'Business profile could not be saved'
+        businessProfileError.value = friendlyErrorMessage(
+          error,
+          'We could not save your business profile. Please try again.',
+        )
         notify(businessProfileError.value, 'error')
       }
       throw error
@@ -1806,8 +1867,10 @@ export const useAppStore = defineStore('app', () => {
         !authenticated.value
       )
         return null
-      chatbotConfigError.value =
-        error.message || 'Failed to load chatbot settings'
+      chatbotConfigError.value = friendlyErrorMessage(
+        error,
+        'We could not load your chatbot settings. Please try again.',
+      )
       notify(chatbotConfigError.value, 'error')
       throw error
     } finally {
@@ -1870,7 +1933,13 @@ export const useAppStore = defineStore('app', () => {
           if (previousCache === null) localStorage.removeItem(STORAGE.chatbot)
           else localStorage.setItem(STORAGE.chatbot, previousCache)
         }
-        notify(error.message || 'Failed to save chatbot settings', 'error')
+        notify(
+          friendlyErrorMessage(
+            error,
+            'We could not save your chatbot settings. Please try again.',
+          ),
+          'error',
+        )
       }
       throw error
     } finally {
@@ -1937,7 +2006,10 @@ export const useAppStore = defineStore('app', () => {
         !authenticated.value
       )
         return null
-      faqError.value = error.message || 'Failed to load FAQs'
+      faqError.value = friendlyErrorMessage(
+        error,
+        'We could not load your FAQs. Please try again.',
+      )
       notify(faqError.value, 'error')
       throw error
     } finally {
@@ -1987,7 +2059,10 @@ export const useAppStore = defineStore('app', () => {
         !authenticated.value
       )
         return null
-      templateError.value = error.message || 'Failed to load templates'
+      templateError.value = friendlyErrorMessage(
+        error,
+        'We could not load the templates. Please try again.',
+      )
       throw error
     } finally {
       if (
@@ -2034,7 +2109,10 @@ export const useAppStore = defineStore('app', () => {
         !authenticated.value
       )
         return null
-      flowError.value = error.message || 'Failed to load attached flows'
+      flowError.value = friendlyErrorMessage(
+        error,
+        'We could not load your conversation flows. Please try again.',
+      )
       throw error
     } finally {
       if (
@@ -2091,7 +2169,10 @@ export const useAppStore = defineStore('app', () => {
         businessId.value === requestBusinessId &&
         authenticated.value
       ) {
-        flowError.value = error.message || 'Template could not be attached'
+        flowError.value = friendlyErrorMessage(
+          error,
+          'We could not attach that template. Please try again.',
+        )
       }
       throw error
     } finally {
@@ -2147,7 +2228,10 @@ export const useAppStore = defineStore('app', () => {
           (flow) => flow.id === flowId,
         )
         if (currentIndex >= 0) businessFlows.value[currentIndex] = previous
-        flowError.value = error.message || 'Flow could not be updated'
+        flowError.value = friendlyErrorMessage(
+          error,
+          'We could not update that flow. Please try again.',
+        )
       }
       throw error
     } finally {
@@ -2187,7 +2271,10 @@ export const useAppStore = defineStore('app', () => {
         businessId.value === requestBusinessId &&
         authenticated.value
       ) {
-        flowError.value = error.message || 'Flow could not be deleted'
+        flowError.value = friendlyErrorMessage(
+          error,
+          'We could not delete that flow. Please try again.',
+        )
       }
       throw error
     } finally {
@@ -2236,7 +2323,13 @@ export const useAppStore = defineStore('app', () => {
         businessId.value === requestBusinessId &&
         authenticated.value
       )
-        notify(error.message || 'FAQ could not be created', 'error')
+        notify(
+          friendlyErrorMessage(
+            error,
+            'We could not save that FAQ. Please try again.',
+          ),
+          'error',
+        )
       throw error
     } finally {
       activeFaqMutations.delete(mutationKey)
@@ -2294,7 +2387,13 @@ export const useAppStore = defineStore('app', () => {
           const currentIndex = faqs.value.findIndex((faq) => faq.id === faqId)
           if (currentIndex >= 0) faqs.value[currentIndex] = previous
         }
-        notify(error.message || 'FAQ could not be updated', 'error')
+        notify(
+          friendlyErrorMessage(
+            error,
+            'We could not update that FAQ. Please try again.',
+          ),
+          'error',
+        )
       }
       throw error
     } finally {
@@ -2330,7 +2429,13 @@ export const useAppStore = defineStore('app', () => {
         businessId.value === requestBusinessId &&
         authenticated.value
       )
-        notify(error.message || 'FAQ could not be deleted', 'error')
+        notify(
+          friendlyErrorMessage(
+            error,
+            'We could not delete that FAQ. Please try again.',
+          ),
+          'error',
+        )
       throw error
     } finally {
       activeFaqMutations.delete(mutationKey)
@@ -2417,8 +2522,10 @@ export const useAppStore = defineStore('app', () => {
           requestId === notificationRequestId &&
           notificationRequestIsCurrent(sessionVersion, requestBusinessId)
         )
-          notificationsError.value =
-            error.message || 'Notifications could not be loaded'
+          notificationsError.value = friendlyErrorMessage(
+            error,
+            'We could not load your notifications. Please try again.',
+          )
         return null
       })
       .finally(() => {
@@ -2498,8 +2605,10 @@ export const useAppStore = defineStore('app', () => {
       })
       .catch((error) => {
         if (notificationRequestIsCurrent(sessionVersion, requestBusinessId))
-          notificationsError.value =
-            error.message || 'Notification could not be marked as read'
+          notificationsError.value = friendlyErrorMessage(
+            error,
+            'We could not update that notification. Please try again.',
+          )
         throw error
       })
       .finally(() => {
@@ -2549,8 +2658,10 @@ export const useAppStore = defineStore('app', () => {
       })
       .catch((error) => {
         if (notificationRequestIsCurrent(sessionVersion, requestBusinessId))
-          notificationsError.value =
-            error.message || 'Notifications could not be marked as read'
+          notificationsError.value = friendlyErrorMessage(
+            error,
+            'We could not update your notifications. Please try again.',
+          )
         throw error
       })
       .finally(() => {

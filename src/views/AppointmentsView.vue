@@ -1,5 +1,11 @@
 <script setup>
-import { Plus, CalendarDays } from 'lucide-vue-next'
+import {
+  Plus,
+  CalendarDays,
+  CalendarCheck,
+  CalendarClock,
+  RefreshCw,
+} from 'lucide-vue-next'
 import AppShell from '../components/layout/AppShell.vue'
 import AppButton from '../components/common/AppButton.vue'
 import AppointmentCard from '../components/appointments/AppointmentCard.vue'
@@ -32,6 +38,33 @@ const upcomingConfirmedCount = computed(
       (appointment) => appointment.status === 'confirmed',
     ).length,
 )
+
+const pendingCount = computed(
+  () =>
+    store.appointments.filter((appointment) => appointment.status === 'pending')
+      .length,
+)
+
+const summaryStats = computed(() => [
+  {
+    label: 'Confirmed and upcoming',
+    value: upcomingConfirmedCount.value,
+    icon: CalendarCheck,
+    tone: 'success',
+  },
+  {
+    label: 'Waiting on confirmation',
+    value: pendingCount.value,
+    icon: CalendarClock,
+    tone: 'warning',
+  },
+  {
+    label: 'All appointments',
+    value: store.appointments.length,
+    icon: CalendarDays,
+    tone: 'primary',
+  },
+])
 
 function groupByDay(appointments) {
   const groups = new Map()
@@ -79,16 +112,18 @@ async function handleStatusChange({ id, status }) {
           </AppButton>
         </RouterLink>
       </div>
-      <div class="summary card">
-        <CalendarDays />
-        <div>
-          <b>
-            {{ upcomingConfirmedCount }}
-            upcoming
-          </b>
-          <span>Across the next few days</span>
+      <div class="summary">
+        <div v-for="stat in summaryStats" :key="stat.label" class="stat card">
+          <span class="stat-icon" :class="stat.tone">
+            <component :is="stat.icon" :size="18" />
+          </span>
+          <div>
+            <b>{{ stat.value }}</b>
+            <span>{{ stat.label }}</span>
+          </div>
         </div>
       </div>
+
       <div class="filter-control">
         <label for="appointment-status">Status</label>
         <select id="appointment-status" v-model="selectedStatus">
@@ -100,27 +135,50 @@ async function handleStatusChange({ id, status }) {
         </select>
       </div>
 
-      <p v-if="store.loadingAppointments" class="page-state" role="status">
-        Loading appointments…
-      </p>
-      <p
-        v-else-if="store.appointments.length === 0"
-        class="page-state"
-      >
-        No appointments yet.
-      </p>
-      <p
-        v-else-if="filteredAppointments.length === 0"
-        class="page-state"
-      >
-        No appointments match this status.
-      </p>
+      <div v-if="store.loadingAppointments" class="card" role="status">
+        <div class="empty-state">
+          <span class="empty-icon"><RefreshCw class="spin" :size="22" /></span>
+          <h3>Loading your appointments…</h3>
+        </div>
+      </div>
+      <div v-else-if="filteredAppointments.length === 0" class="card">
+        <div class="empty-state">
+          <span class="empty-icon"><CalendarDays :size="22" /></span>
+          <h3>
+            {{
+              store.appointments.length === 0
+                ? 'No appointments yet'
+                : 'Nothing with this status'
+            }}
+          </h3>
+          <p>
+            {{
+              store.appointments.length === 0
+                ? 'Bookings made in chat show up here, and you can add one yourself at any time.'
+                : 'Choose a different status to see other bookings.'
+            }}
+          </p>
+          <RouterLink
+            v-if="store.appointments.length === 0"
+            to="/appointments/new"
+          >
+            <AppButton>
+              <Plus :size="16" />
+              New appointment
+            </AppButton>
+          </RouterLink>
+        </div>
+      </div>
       <template v-else>
         <section v-if="upcomingGroups.length" aria-labelledby="upcoming-title">
           <h2 id="upcoming-title" class="section-title">
             Upcoming appointments
           </h2>
-          <div v-for="group in upcomingGroups" :key="group.day" class="day-group">
+          <div
+            v-for="group in upcomingGroups"
+            :key="group.day"
+            class="day-group"
+          >
             <h3>{{ group.day }}</h3>
             <AppointmentCard
               v-for="appointment in group.items"
@@ -150,24 +208,51 @@ async function handleStatusChange({ id, status }) {
 </template>
 <style scoped>
 .summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 23px;
+}
+.stat {
   display: flex;
   align-items: center;
   gap: 13px;
-  padding: 16px 19px;
-  margin-bottom: 23px;
-  color: var(--primary);
+  padding: 16px 18px;
 }
-.summary div {
+.stat > div {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
-.summary b {
-  font-size: 14px;
+.stat b {
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
 }
-.summary span {
-  font-size: 11px;
+.stat > div span {
+  font-size: var(--fs-xs);
   color: var(--muted);
+  font-weight: 600;
   margin-top: 2px;
+}
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: var(--primary-soft);
+  color: var(--primary);
+}
+.stat-icon.success {
+  background: var(--success-bg);
+  color: var(--success);
+}
+.stat-icon.warning {
+  background: var(--warning-bg);
+  color: var(--warning);
 }
 section {
   margin-top: 28px;
@@ -202,20 +287,10 @@ section {
   font-weight: 700;
 }
 .filter-control select {
-  min-width: 150px;
-  padding: 8px 10px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  color: var(--text);
-  background: #fff;
-}
-.page-state {
-  margin: 28px 0;
-  padding: 24px;
-  border: 1px dashed var(--border);
-  border-radius: 12px;
-  color: var(--muted);
-  text-align: center;
+  width: auto;
+  min-width: 170px;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
 }
 @media (max-width: 760px) {
   .filter-control {

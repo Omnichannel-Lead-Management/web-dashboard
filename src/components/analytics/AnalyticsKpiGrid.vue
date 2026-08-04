@@ -1,46 +1,57 @@
 <script setup>
 defineProps({ items: { type: Array, default: () => [] } })
 </script>
+
 <template>
   <section class="grid" aria-label="Analytics summary">
     <article
       v-for="item in items"
       :key="item.label"
-      class="card"
-      :aria-label="`${item.label}: ${item.value ?? 'Unavailable'}`"
+      class="card kpi"
+      :aria-label="`${item.label}: ${item.value ?? 'Not available'}`"
     >
-      <span>{{ item.label }}</span>
-      <strong>{{ item.value ?? 'Unavailable' }}</strong>
+      <span class="label">{{ item.label }}</span>
+      <strong :class="{ unavailable: item.value == null }">
+        {{ item.value ?? '—' }}
+      </strong>
       <small v-if="item.note">{{ item.note }}</small>
     </article>
   </section>
 </template>
+
 <style scoped>
 .grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 12px;
 }
-.card {
-  padding: 17px;
+.kpi {
+  padding: 18px;
   display: grid;
   gap: 6px;
+  align-content: start;
+  transition: box-shadow var(--dur) var(--ease);
 }
-.card span,
-.card small {
+.kpi:hover {
+  box-shadow: var(--shadow-md);
+}
+.label {
   color: var(--muted);
+  font-size: var(--fs-sm);
+  font-weight: 600;
 }
-.card strong {
-  font-size: 26px;
+.kpi strong {
+  font-size: 28px;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
 }
-@media (max-width: 850px) {
-  .grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.kpi strong.unavailable {
+  color: var(--muted);
+  font-size: 22px;
 }
-@media (max-width: 480px) {
-  .grid {
-    grid-template-columns: 1fr;
-  }
+.kpi small {
+  color: var(--muted);
+  font-size: var(--fs-xs);
 }
 </style>

@@ -6,6 +6,7 @@ import AppBadge from '../common/AppBadge.vue'
 import { useAppStore } from '../../stores/app'
 import { mapFlowSteps } from '../../services/mappers'
 import { isCurrentTemplateAttachment } from '../../services/templateAttachment'
+import { friendlyErrorMessage } from '../../services/displayText'
 
 const props = defineProps({
   compact: { type: Boolean, default: false },
@@ -127,7 +128,13 @@ function toggleSteps(flow) {
   } catch (error) {
     stepCache.value = {
       ...stepCache.value,
-      [flow.id]: { steps: [], error: error.message },
+      [flow.id]: {
+        steps: [],
+        error: friendlyErrorMessage(
+          error,
+          'We could not load the steps for this template.',
+        ),
+      },
     }
   }
   expandedFlow.value = flow.id

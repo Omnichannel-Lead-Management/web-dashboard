@@ -11,7 +11,10 @@ defineEmits(['open'])
 
 <template>
   <section class="triage">
-    <h2>⚡ Escalation queue · {{ conversations.length }} <RouterLink to="/escalations">View full queue</RouterLink></h2>
+    <h2>
+      ⚡ Escalation queue · {{ conversations.length }}
+      <RouterLink to="/escalations">View full queue</RouterLink>
+    </h2>
     <button
       v-for="conversation in conversations"
       :key="conversation.id"
@@ -28,7 +31,12 @@ defineEmits(['open'])
           <time class="mono">{{ conversation.time }}</time>
         </span>
         <span class="preview">{{ conversation.preview }}</span>
-        <span v-if="conversation.escalationTag || conversation.escalationSummary" class="reason">{{ conversation.escalationTag || conversation.escalationSummary }}</span>
+        <span
+          v-if="conversation.escalationTag || conversation.escalationSummary"
+          class="reason"
+        >
+          {{ conversation.escalationTag || conversation.escalationSummary }}
+        </span>
         <span class="meta">
           <i class="channel-dot" :class="conversation.channel.toLowerCase()" />
           <AppBadge v-if="conversation.score != null" tone="warning">
@@ -49,7 +57,21 @@ defineEmits(['open'])
   letter-spacing: 0.055em;
   text-transform: uppercase;
 }
-.triage h2 a{float:right;color:var(--primary);text-transform:none;letter-spacing:0}.reason{display:block;margin-top:4px;color:var(--danger);font-size:10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.triage h2 a {
+  float: right;
+  color: var(--primary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.reason {
+  display: block;
+  margin-top: 4px;
+  color: var(--danger);
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .triage button {
   width: calc(100% - 26px);
   margin: 0 13px 8px;
