@@ -7,8 +7,6 @@ import {
   Building2,
   MessageSquareText,
   Globe2,
-  Bell,
-  Image,
   Users,
   ChartNoAxesCombined,
 } from 'lucide-vue-next'
@@ -27,8 +25,6 @@ const items = [
   ['telegram', 'Telegram', TentTree],
   ['whatsapp', 'WhatsApp', MessageCircleMore],
   ['webchat', 'Web chat', Globe2],
-  ['notifications', 'Notification Centre', Bell],
-  ['images', 'Image attachments', Image],
   ['escalations', 'Escalation queue', Users],
   ['analytics', 'Analytics', ChartNoAxesCombined],
   ['chatbot', 'Chatbot settings', Bot],

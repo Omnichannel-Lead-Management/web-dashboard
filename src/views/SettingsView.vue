@@ -10,8 +10,6 @@ import WhatsAppConnect from '../components/settings/WhatsAppConnect.vue'
 import TelegramConnect from '../components/settings/TelegramConnect.vue'
 import BusinessProfileSettings from '../components/settings/BusinessProfileSettings.vue'
 import WebChatSettings from '../components/settings/WebChatSettings.vue'
-import NotificationSettings from '../components/settings/NotificationSettings.vue'
-import ImageAttachmentSettings from '../components/settings/ImageAttachmentSettings.vue'
 import EscalationQueueSettings from '../components/settings/EscalationQueueSettings.vue'
 import AnalyticsSettings from '../components/settings/AnalyticsSettings.vue'
 import AppButton from '../components/common/AppButton.vue'
@@ -136,12 +134,6 @@ function selectSection(sectionId) {
           </template>
           <template v-else-if="activeSection === 'webchat'">
             <WebChatSettings />
-          </template>
-          <template v-else-if="activeSection === 'notifications'">
-            <NotificationSettings />
-          </template>
-          <template v-else-if="activeSection === 'images'">
-            <ImageAttachmentSettings />
           </template>
           <template v-else-if="activeSection === 'escalations'">
             <EscalationQueueSettings />

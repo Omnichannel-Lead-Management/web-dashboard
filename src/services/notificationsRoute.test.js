@@ -27,12 +27,15 @@ describe('notification centre integration', () => {
     expect(panel).toContain('to="/notifications"')
   })
 
-  test('settings navigation and preview action resolve to notifications', async () => {
-    const [navigation, settings] = await Promise.all([
+  test('settings no longer exposes notifications; the bell remains the entry point', async () => {
+    const [navigation, view, settings] = await Promise.all([
       read('../components/settings/SettingsNavigation.vue'),
+      read('../views/SettingsView.vue'),
       read('../components/settings/NotificationSettings.vue'),
     ])
-    expect(navigation).toContain("['notifications', 'Notification Centre'")
+    expect(navigation).not.toContain("['notifications', 'Notification Centre'")
+    expect(view).not.toContain('<NotificationSettings />')
+    // The pane itself is retained and still routes correctly if re-enabled.
     expect(settings).toContain("router.push('/notifications')")
   })
 
