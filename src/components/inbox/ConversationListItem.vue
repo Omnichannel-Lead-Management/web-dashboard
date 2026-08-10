@@ -40,7 +40,7 @@ defineProps({
 .item {
   width: 100%;
   border: 0;
-  border-bottom: 1px solid #f0f1f5;
+  border-bottom: 1px solid var(--border);
   background: transparent;
   padding: 14px 20px;
   display: flex;

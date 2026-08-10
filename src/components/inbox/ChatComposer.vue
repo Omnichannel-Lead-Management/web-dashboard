@@ -62,7 +62,7 @@ function submitMessage() {
   flex: none;
   padding: 18px 27px 15px;
   background: #fff;
-  border-top: 1px solid #eef0f5;
+  border-top: 1px solid var(--border-strong);
 }
 .composer {
   min-height: 74px;

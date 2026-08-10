@@ -59,8 +59,19 @@ const router = createRouter({
   scrollBehavior: () => ({ top: 0 }),
 })
 
+/**
+ * The inbox design preview renders from seeded data and reaches no backend, so
+ * while developing it opens without signing in. `import.meta.env.DEV` is
+ * replaced with `false` when building, which drops this from production.
+ */
+function isDesignPreview(to) {
+  return import.meta.env.DEV && to.path === '/inbox' && to.query.preview === '1'
+}
+
 router.beforeEach((to) => {
   const store = useAppStore()
+
+  if (isDesignPreview(to)) return true
 
   if (!to.meta.guest && !store.authenticated) {
     return '/login'

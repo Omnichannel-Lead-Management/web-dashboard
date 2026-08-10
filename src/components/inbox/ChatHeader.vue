@@ -93,7 +93,7 @@ const emit = defineEmits(['claim', 'release', 'back'])
 header {
   height: 84px;
   padding: 13px 26px;
-  border-bottom: 1px solid #eef0f5;
+  border-bottom: 1px solid var(--border-strong);
   display: flex;
   align-items: center;
   gap: 11px;

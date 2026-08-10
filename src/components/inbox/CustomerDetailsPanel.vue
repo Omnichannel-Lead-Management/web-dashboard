@@ -85,7 +85,7 @@ const emit = defineEmits(['close'])
 aside {
   width: 278px;
   flex: none;
-  border-left: 1px solid #eef0f5;
+  border-left: 1px solid var(--border-strong);
   background: #fbfbfd;
   padding: 20px;
   overflow-y: auto;

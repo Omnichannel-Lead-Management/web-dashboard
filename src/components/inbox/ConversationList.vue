@@ -113,7 +113,7 @@ const regular = computed(() =>
   display: flex;
   flex-direction: column;
   background: #fafafc;
-  border-right: 1px solid #e7e9f0;
+  border-right: 1px solid var(--border-strong);
 }
 .tools {
   flex: none;

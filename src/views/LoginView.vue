@@ -93,7 +93,7 @@ async function submitLogin() {
       <div>
         <span class="eyebrow">Omnichannel · One inbox</span>
         <h2>
-          Every customer message from Telegram, WhatsApp & web — in one calm
+          Every customer message from Telegram, WhatsApp & web in one calm
           place.
         </h2>
         <p>
