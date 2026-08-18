@@ -84,7 +84,7 @@ const emit = defineEmits(['claim', 'release', 'back'])
         variant="secondary"
         @click="$emit('release')"
       >
-        Release back to queue
+        Return to AI assistant
       </AppButton>
     </div>
   </header>

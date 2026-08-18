@@ -68,7 +68,7 @@ function claim(item) {
 function release(item) {
   if (
     window.confirm(
-      `Release ${item.customerName}'s conversation back to the queue?`,
+      `Return ${item.customerName}'s conversation to the AI assistant?`,
     )
   ) {
     store.releaseEscalation(item.id)

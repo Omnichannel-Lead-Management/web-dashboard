@@ -924,8 +924,12 @@ export const useAppStore = defineStore('app', () => {
           conversations.value.find((item) => item.id === id)?.name ||
           event.messenger_id,
         is_escalated: true,
-        escalation_status: 'claimed',
-        claimed_by_agent_id: event.from === 'agent' ? event.agent_id : null,
+        // A queued chat is still handled by the AI — only a claim makes it a
+        // human's chat, so never infer "claimed" from message traffic alone.
+        escalation_status: event.escalation_status || 'claimed',
+        claimed_by_agent_id:
+          event.claimed_by_agent_id ??
+          (event.from === 'agent' ? event.agent_id : null),
         last_message: {
           text: event.text,
           is_from_user: event.from === 'user',

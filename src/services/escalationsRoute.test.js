@@ -22,7 +22,7 @@ describe('escalation queue integration', () => {
         read('../components/settings/EscalationQueueSettings.vue'),
       ])
     ).join('\n')
-    expect(source).toContain('Release back to queue')
+    expect(source).toContain('Return to AI assistant')
     expect(source).not.toContain('resolve_chat')
     expect(source).not.toMatch(/priority.*(high|medium|low)/i)
   })

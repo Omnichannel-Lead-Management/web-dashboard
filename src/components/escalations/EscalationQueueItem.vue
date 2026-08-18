@@ -108,10 +108,10 @@ const urgent = computed(() => {
         variant="secondary"
         :disabled="!connected || claimPending || releasePending"
         :aria-busy="releasePending"
-        :aria-label="`Release conversation with ${item.customerName} back to the queue`"
+        :aria-label="`Return conversation with ${item.customerName} to the AI assistant`"
         @click="$emit('release', item)"
       >
-        {{ releasePending ? 'Releasing…' : 'Release back to queue' }}
+        {{ releasePending ? 'Releasing…' : 'Return to AI assistant' }}
       </AppButton>
     </footer>
   </li>
