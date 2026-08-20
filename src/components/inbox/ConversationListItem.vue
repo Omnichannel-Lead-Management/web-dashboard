@@ -28,6 +28,9 @@ defineProps({
       <span class="preview">{{ conversation.preview }}</span>
       <span class="meta">
         <i class="channel-dot" :class="conversation.channel.toLowerCase()" />
+        <AppBadge v-if="conversation.escalated" tone="warning">
+          {{ conversation.claimed ? 'Claimed' : 'Escalated' }}
+        </AppBadge>
         <AppBadge :tone="conversation.status">
           {{ conversation.status }}
         </AppBadge>

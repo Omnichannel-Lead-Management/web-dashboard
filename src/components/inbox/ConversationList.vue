@@ -2,7 +2,6 @@
 import { computed } from 'vue'
 import { MessagesSquare, Search } from 'lucide-vue-next'
 import ConversationListItem from './ConversationListItem.vue'
-import TriageQueue from './TriageQueue.vue'
 
 const props = defineProps({
   conversations: { type: Array, default: () => [] },
@@ -10,18 +9,8 @@ const props = defineProps({
   search: { type: String, default: '' },
   filter: { type: String, default: 'All' },
   escalationEnabled: { type: Boolean, default: false },
-  agentId: { type: String, default: '' },
-  connected: { type: Boolean, default: false },
-  claimPendingIds: { type: Array, default: () => [] },
-  releasePendingIds: { type: Array, default: () => [] },
 })
-const emit = defineEmits([
-  'select',
-  'update:search',
-  'update:filter',
-  'claim',
-  'release',
-])
+const emit = defineEmits(['select', 'update:search', 'update:filter'])
 const filters = computed(() =>
   props.escalationEnabled ? ['All', 'Unread', 'Escalated'] : ['All', 'Unread'],
 )
@@ -41,20 +30,20 @@ const filteredConversations = computed(() =>
     return matchesSearch && matchesFilter
   }),
 )
-const escalated = computed(() =>
-  props.escalationEnabled
-    ? filteredConversations.value.filter(
-        (conversation) => conversation.escalated,
-      )
-    : [],
-)
-const regular = computed(() =>
-  props.escalationEnabled
-    ? filteredConversations.value.filter(
-        (conversation) => !conversation.escalated,
-      )
-    : filteredConversations.value,
-)
+/**
+ * One plain stack, with anything waiting on a human floated to the top so an
+ * agent sees it first. The row itself carries the "Escalated" tag.
+ */
+const orderedConversations = computed(() => {
+  if (!props.escalationEnabled) return filteredConversations.value
+  const escalated = []
+  const rest = []
+  for (const conversation of filteredConversations.value) {
+    if (conversation.escalated) escalated.push(conversation)
+    else rest.push(conversation)
+  }
+  return [...escalated, ...rest]
+})
 </script>
 
 <template>
@@ -82,20 +71,9 @@ const regular = computed(() =>
       </div>
     </div>
     <div class="scroll">
-      <TriageQueue
-        v-if="escalated.length"
-        :conversations="escalated"
-        :agent-id="agentId"
-        :connected="connected"
-        :claim-pending-ids="claimPendingIds"
-        :release-pending-ids="releasePendingIds"
-        @open="emit('select', $event)"
-        @claim="emit('claim', $event)"
-        @release="emit('release', $event)"
-      />
-      <h2 v-if="regular.length">Conversations</h2>
+      <h2 v-if="orderedConversations.length">Conversations</h2>
       <ConversationListItem
-        v-for="conversation in regular"
+        v-for="conversation in orderedConversations"
         :key="conversation.id"
         :conversation="conversation"
         :active="selectedId === conversation.id"

@@ -212,15 +212,9 @@ function releaseConversation(id = selectedConversation.value.id) {
         :conversations="conversations"
         :selected-id="selectedConversation.id"
         :escalation-enabled="store.escalationQueueAvailable"
-        :agent-id="agentId"
-        :connected="connected"
-        :claim-pending-ids="claimPendingIds"
-        :release-pending-ids="releasePendingIds"
         v-model:search="conversationSearch"
         v-model:filter="conversationFilter"
         @select="selectConversation"
-        @claim="claimConversation"
-        @release="releaseConversation"
       />
       <section
         class="chat"

@@ -47,13 +47,13 @@ describe('escalation queue integration', () => {
     expect(source).not.toContain('store.connectionStatus }}')
   })
 
-  test('Inbox and Settings link to the queue and Inbox uses a stable identifier', async () => {
-    const [triage, settings, inbox] = await Promise.all([
-      read('../components/inbox/TriageQueue.vue'),
+  test('Nav and Settings link to the queue and Inbox uses a stable identifier', async () => {
+    const [nav, settings, inbox] = await Promise.all([
+      read('../components/layout/AppNavigation.vue'),
       read('../components/settings/EscalationQueueSettings.vue'),
       read('../views/InboxView.vue'),
     ])
-    expect(triage).toContain('to="/escalations"')
+    expect(nav).toContain("to: '/escalations'")
     expect(settings).toContain('to="/escalations"')
     expect(inbox).toContain('route.query.conversation')
     expect(inbox).not.toContain('v-html')
