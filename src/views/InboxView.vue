@@ -21,6 +21,7 @@ const previewConversations = ref([])
 const previewMessages = ref({})
 const previewSelectedConversationId = ref('')
 const previewIdentity = ref(null)
+const previewAgentId = ref('')
 
 if (import.meta.env.DEV) {
   watch(
@@ -37,6 +38,7 @@ if (import.meta.env.DEV) {
         previewMessages.value = structuredClone(preview.inboxPreviewMessages)
         previewSelectedConversationId.value =
           preview.inboxPreviewSelectedConversationId
+        previewAgentId.value = preview.inboxPreviewAgentId
         previewIdentity.value = {
           business: preview.inboxPreviewBusiness,
           agent: preview.inboxPreviewAgent,
@@ -76,6 +78,23 @@ const emptyConversation = {
   escalated: false,
 }
 
+const agentId = computed(() =>
+  isInboxPreview.value ? previewAgentId.value : store.agentId,
+)
+
+/** Claim and release only reach the gateway over a live agent socket. */
+const connected = computed(() =>
+  isInboxPreview.value ? true : store.connectionStatus === 'online',
+)
+
+const claimPendingIds = computed(() =>
+  isInboxPreview.value ? [] : store.escalationClaimPendingIds,
+)
+
+const releasePendingIds = computed(() =>
+  isInboxPreview.value ? [] : store.escalationReleasePendingIds,
+)
+
 const conversations = computed(() =>
   isInboxPreview.value ? previewConversations.value : store.conversations,
 )
@@ -97,9 +116,9 @@ const selectedConversation = computed(() => {
   const claimedByAgentId = selected.claimedByAgentId || ''
   return {
     ...selected,
-    claimed: Boolean(claimedByAgentId && claimedByAgentId === store.agentId),
+    claimed: Boolean(claimedByAgentId && claimedByAgentId === agentId.value),
     claimedByOther: Boolean(
-      claimedByAgentId && claimedByAgentId !== store.agentId,
+      claimedByAgentId && claimedByAgentId !== agentId.value,
     ),
   }
 })
@@ -154,23 +173,31 @@ function sendMessage(messageText) {
 }
 
 function claimConversation(id = selectedConversation.value.id) {
+  if (!id) return
   if (isInboxPreview.value) {
     const conversation = previewConversations.value.find(
       (item) => item.id === id,
     )
-    if (conversation) conversation.claimed = true
+    if (conversation) {
+      conversation.claimed = true
+      conversation.claimedByAgentId = previewAgentId.value
+    }
   } else {
     store.claim(id)
   }
   selectConversation(id)
 }
 
-function releaseConversation(id) {
+function releaseConversation(id = selectedConversation.value.id) {
+  if (!id) return
   if (isInboxPreview.value) {
     const conversation = previewConversations.value.find(
       (item) => item.id === id,
     )
-    if (conversation) conversation.claimed = false
+    if (conversation) {
+      conversation.claimed = false
+      conversation.claimedByAgentId = ''
+    }
   } else {
     store.release(id)
   }
@@ -185,9 +212,15 @@ function releaseConversation(id) {
         :conversations="conversations"
         :selected-id="selectedConversation.id"
         :escalation-enabled="store.escalationQueueAvailable"
+        :agent-id="agentId"
+        :connected="connected"
+        :claim-pending-ids="claimPendingIds"
+        :release-pending-ids="releasePendingIds"
         v-model:search="conversationSearch"
         v-model:filter="conversationFilter"
         @select="selectConversation"
+        @claim="claimConversation"
+        @release="releaseConversation"
       />
       <section
         class="chat"
@@ -196,8 +229,11 @@ function releaseConversation(id) {
         <ChatHeader
           v-if="selectedConversation.id"
           :conversation="selectedConversation"
-          :agent-id="store.agentId"
+          :agent-id="agentId"
           :escalation-enabled="store.escalationQueueAvailable"
+          :connected="connected"
+          :claim-pending="claimPendingIds.includes(selectedConversation.id)"
+          :release-pending="releasePendingIds.includes(selectedConversation.id)"
           @back="activeMobilePanel = 'list'"
           @claim="claimConversation()"
           @release="releaseConversation(selectedConversation.id)"

@@ -10,8 +10,18 @@ const props = defineProps({
   search: { type: String, default: '' },
   filter: { type: String, default: 'All' },
   escalationEnabled: { type: Boolean, default: false },
+  agentId: { type: String, default: '' },
+  connected: { type: Boolean, default: false },
+  claimPendingIds: { type: Array, default: () => [] },
+  releasePendingIds: { type: Array, default: () => [] },
 })
-const emit = defineEmits(['select', 'update:search', 'update:filter'])
+const emit = defineEmits([
+  'select',
+  'update:search',
+  'update:filter',
+  'claim',
+  'release',
+])
 const filters = computed(() =>
   props.escalationEnabled ? ['All', 'Unread', 'Escalated'] : ['All', 'Unread'],
 )
@@ -75,7 +85,13 @@ const regular = computed(() =>
       <TriageQueue
         v-if="escalated.length"
         :conversations="escalated"
+        :agent-id="agentId"
+        :connected="connected"
+        :claim-pending-ids="claimPendingIds"
+        :release-pending-ids="releasePendingIds"
         @open="emit('select', $event)"
+        @claim="emit('claim', $event)"
+        @release="emit('release', $event)"
       />
       <h2 v-if="regular.length">Conversations</h2>
       <ConversationListItem

@@ -1,4 +1,5 @@
 <script setup>
+import { computed } from 'vue'
 import { ArrowLeft } from 'lucide-vue-next'
 
 import AppAvatar from '../common/AppAvatar.vue'
@@ -6,16 +7,49 @@ import AppBadge from '../common/AppBadge.vue'
 import AppButton from '../common/AppButton.vue'
 import { shortReference } from '../../services/displayText'
 
-defineProps({
+const props = defineProps({
   conversation: {
     type: Object,
     required: true,
   },
   agentId: { type: String, default: '' },
   escalationEnabled: { type: Boolean, default: false },
+  connected: { type: Boolean, default: false },
+  claimPending: { type: Boolean, default: false },
+  releasePending: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['claim', 'release', 'back'])
+defineEmits(['claim', 'release', 'back'])
+
+const showEscalationControls = computed(
+  () => props.escalationEnabled && Boolean(props.conversation.id),
+)
+
+/**
+ * Only an escalated, unclaimed chat can be claimed. The bot owns everything
+ * else, so offering a button there would do nothing when pressed.
+ */
+const canClaim = computed(
+  () =>
+    showEscalationControls.value &&
+    props.conversation.escalated &&
+    !props.conversation.claimed &&
+    !props.conversation.claimedByOther,
+)
+
+const canRelease = computed(
+  () => showEscalationControls.value && props.conversation.claimed,
+)
+
+const claimDisabled = computed(
+  () => !props.connected || !props.agentId || props.claimPending,
+)
+
+const claimHint = computed(() => {
+  if (!props.agentId) return 'Sign in again to claim conversations'
+  if (!props.connected) return 'Reconnecting to the gateway…'
+  return `Take over the chat with ${props.conversation.name} from the AI assistant`
+})
 </script>
 <template>
   <header>
@@ -52,8 +86,7 @@ const emit = defineEmits(['claim', 'release', 'back'])
     <div class="actions">
       <AppBadge
         v-if="
-          escalationEnabled &&
-          conversation.id &&
+          showEscalationControls &&
           (conversation.escalated || conversation.claimed)
         "
         :tone="conversation.claimed ? 'success' : 'warning'"
@@ -67,24 +100,25 @@ const emit = defineEmits(['claim', 'release', 'back'])
         }}
       </AppBadge>
       <AppButton
-        v-if="
-          escalationEnabled &&
-          conversation.id &&
-          !conversation.claimed &&
-          !conversation.claimedByOther
-        "
+        v-if="canClaim"
         class="claim"
+        :disabled="claimDisabled"
+        :aria-busy="claimPending"
+        :title="claimHint"
         @click="$emit('claim')"
       >
-        Claim chat
+        {{ claimPending ? 'Claiming…' : 'Claim chat' }}
       </AppButton>
       <AppButton
-        v-else-if="escalationEnabled && conversation.id && conversation.claimed"
+        v-else-if="canRelease"
         size="sm"
         variant="secondary"
+        :disabled="!connected || releasePending"
+        :aria-busy="releasePending"
+        title="Hand this chat back to the AI assistant"
         @click="$emit('release')"
       >
-        Return to AI assistant
+        {{ releasePending ? 'Releasing…' : 'Return to AI assistant' }}
       </AppButton>
     </div>
   </header>

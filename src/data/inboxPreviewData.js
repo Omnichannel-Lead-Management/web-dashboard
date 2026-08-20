@@ -6,6 +6,9 @@ export const inboxPreviewAgent = {
   role: 'Agent',
 }
 
+/** Identity the preview harness claims chats as, so both button states render. */
+export const inboxPreviewAgentId = 'agent_preview'
+
 export const inboxPreviewSelectedConversationId = 'A12F'
 
 export const inboxPreviewConversations = [
@@ -24,6 +27,11 @@ export const inboxPreviewConversations = [
     unread: true,
     escalated: true,
     claimed: false,
+    claimedByAgentId: '',
+    escalationTag: 'service_inquiry',
+    escalationSummary:
+      'Wants pricing and availability for the premium bridal package.',
+    escalationRequestedAt: new Date(Date.now() - 2 * 60000).toISOString(),
     language: 'EN',
     interest: 'Premium package',
   },
@@ -40,8 +48,12 @@ export const inboxPreviewConversations = [
     status: 'contacted',
     score: 55,
     unread: true,
-    escalated: false,
+    escalated: true,
     claimed: true,
+    claimedByAgentId: 'agent_preview',
+    escalationTag: 'appointment',
+    escalationSummary: 'Asking for a Saturday colouring slot.',
+    escalationRequestedAt: new Date(Date.now() - 18 * 60000).toISOString(),
     language: 'EN',
   },
   {
