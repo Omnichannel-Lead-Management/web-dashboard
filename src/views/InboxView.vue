@@ -253,8 +253,19 @@ function releaseConversation(id = selectedConversation.value.id) {
           >
             No messages in this conversation yet.
           </div>
-          <span v-if="selectedConversation.escalated" class="escalation">
-            ⚠ Chat escalated to a human agent
+          <span
+            v-if="
+              store.escalationQueueAvailable && selectedConversation.escalated
+            "
+            class="escalation"
+          >
+            {{
+              selectedConversation.claimed
+                ? '⚠ You are handling this chat — the AI assistant is paused'
+                : selectedConversation.claimedByOther
+                  ? '⚠ Another agent is handling this chat'
+                  : '⚠ Waiting for an agent — claim it to take over from the AI'
+            }}
           </span>
         </div>
         <div v-else class="empty-workspace">
