@@ -90,6 +90,9 @@ const ESCALATION_METADATA_KEYS = [
   'escalationRequestedAt',
 ]
 
+/** What mapConversation falls back to when a payload carries no message text. */
+const NO_MESSAGES_PREVIEW = 'No messages yet'
+
 export const useAppStore = defineStore('app', () => {
   const authenticated = ref(localStorage.getItem(STORAGE.auth) === 'true')
   const inboxView = ref(
@@ -671,6 +674,18 @@ export const useAppStore = defineStore('app', () => {
     return onboardingProgress.value
   }
 
+  /** Return a conversation to the bot's hands in the inbox list. */
+  function clearConversationEscalation(conversation) {
+    conversation.escalated = false
+    conversation.claimed = false
+    conversation.claimedByAgentId = ''
+    conversation.claimedByMe = false
+    conversation.claimedByOther = false
+    conversation.claimedAt = null
+    conversation.escalationStatus = 'none'
+    conversation.escalation_status = 'none'
+  }
+
   function upsertConversation(summaryOrConversation) {
     const mapped = summaryOrConversation.id
       ? summaryOrConversation
@@ -684,6 +699,14 @@ export const useAppStore = defineStore('app', () => {
       for (const key of ESCALATION_METADATA_KEYS) {
         if (!mapped[key] && existing[key]) merged[key] = existing[key]
       }
+      // A queue snapshot carries no message text, so keep the last preview
+      // rather than replacing a real message with "No messages yet".
+      if (
+        mapped.preview === NO_MESSAGES_PREVIEW &&
+        existing.preview &&
+        existing.preview !== NO_MESSAGES_PREVIEW
+      )
+        merged.preview = existing.preview
       conversations.value[index] = merged
     } else {
       conversations.value.unshift(mapped)
@@ -848,6 +871,17 @@ export const useAppStore = defineStore('app', () => {
           updated_at: chat.updated_at,
         })
       }
+      // The snapshot is the whole queue, so anything missing from it has been
+      // released. Without this a released chat stays flagged in the sidebar.
+      const stillEscalated = new Set(
+        currentBusinessChats.map((chat) =>
+          conversationId(chat.platform, chat.messenger_id),
+        ),
+      )
+      for (const conversation of conversations.value) {
+        if (conversation.escalated && !stillEscalated.has(conversation.id))
+          clearConversationEscalation(conversation)
+      }
       return
     }
 
@@ -937,19 +971,29 @@ export const useAppStore = defineStore('app', () => {
       // this dashboard is signed into belongs in its inbox.
       if (!isCurrentEscalationBusiness(event)) return
       const id = conversationId(event.platform, event.messenger_id)
+      const existing = conversations.value.find((item) => item.id === id)
+      // Live traffic now covers ordinary bot chats too, so the escalation state
+      // has to come from the event — never be assumed from the traffic itself.
+      const escalated =
+        event.is_escalated ??
+        (event.escalation_status
+          ? event.escalation_status !== 'none'
+          : Boolean(existing?.escalated))
       upsertConversation({
         messenger_id: event.messenger_id,
         platform: event.platform,
         display_name:
-          conversations.value.find((item) => item.id === id)?.name ||
-          event.messenger_id,
-        is_escalated: true,
+          event.display_name || existing?.name || event.messenger_id,
+        is_escalated: escalated,
         // A queued chat is still handled by the AI — only a claim makes it a
         // human's chat, so never infer "claimed" from message traffic alone.
-        escalation_status: event.escalation_status || 'claimed',
-        claimed_by_agent_id:
-          event.claimed_by_agent_id ??
-          (event.from === 'agent' ? event.agent_id : null),
+        escalation_status: escalated
+          ? event.escalation_status || 'queued'
+          : 'none',
+        claimed_by_agent_id: escalated
+          ? (event.claimed_by_agent_id ??
+            (event.from === 'agent' ? event.agent_id : null))
+          : null,
         last_message: {
           text: event.text,
           is_from_user: event.from === 'user',

@@ -423,6 +423,36 @@ describe('escalation store', () => {
     expect(store.toast).toMatchObject({ type: 'error' })
     expect(store.toast.message).toContain('not waiting in the queue')
   })
+  test('a snapshot without the chat clears its escalated tag in the inbox', () => {
+    const socket = connectAgent()
+    socket.message({ type: 'queue_snapshot', chats: [row()] })
+    expect(
+      store.conversations.find((item) => item.id === 'web:m1'),
+    ).toMatchObject({ escalated: true })
+
+    // Releasing de-escalates server-side, so the next snapshot omits the chat.
+    socket.message({ type: 'queue_snapshot', chats: [] })
+    expect(
+      store.conversations.find((item) => item.id === 'web:m1'),
+    ).toMatchObject({ escalated: false, claimed: false, claimedByAgentId: '' })
+  })
+  test('a snapshot never replaces a real preview with the empty placeholder', () => {
+    const socket = connectAgent()
+    socket.message({
+      type: 'chat_message',
+      platform: 'web',
+      messenger_id: 'm1',
+      business_id: 'biz_a',
+      from: 'user',
+      text: 'are you open today?',
+      escalation_status: 'queued',
+      timestamp: '2026-08-03T10:05:00Z',
+    })
+    socket.message({ type: 'queue_snapshot', chats: [row()] })
+    expect(store.conversations.find((item) => item.id === 'web:m1').preview).toBe(
+      'are you open today?',
+    )
+  })
   test('business switch settles a pending release with cancellation', async () => {
     connectAgent()
     store.applyEscalationSnapshot(
