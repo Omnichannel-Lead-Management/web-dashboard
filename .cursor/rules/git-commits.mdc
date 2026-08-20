@@ -1,0 +1,13 @@
+---
+description: Conventional short commits; never Co-authored-by
+alwaysApply: true
+---
+
+# Git commits
+
+- Subject must start with `feat:`, `fix:`, `chore:`, `docs:`, `refactor:`, `test:`, or `ci:`
+- Keep it very short after the prefix (a few words)
+- Examples: `feat: add telegram webhook`, `fix: deploy ssh quoting`, `chore: update deps`
+- No long body unless the user asks
+- **Never** add `Co-authored-by:`, `Made-with:`, `Signed-off-by:`, or any Cursor/AI credit
+- Do not pass git `--trailer` for Cursor attribution
