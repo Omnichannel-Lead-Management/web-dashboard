@@ -33,6 +33,7 @@ jobs:
       - name: Production build
         env:
           VITE_GATEWAY_URL: https://cache.us.kg
+          VITE_AGENT_ESCALATION_QUEUE_ENABLED: 'true'
         run: bun run build
 
   deploy:
