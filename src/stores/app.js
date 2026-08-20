@@ -80,6 +80,16 @@ const DEFAULT_WORKSPACE = {
   owner_email: import.meta.env.VITE_BUSINESS_EMAIL || '',
 }
 
+/**
+ * Triage fields that only ever arrive on a queue snapshot or `chat_queued`.
+ * Merges from other events must not blank them out.
+ */
+const ESCALATION_METADATA_KEYS = [
+  'escalationTag',
+  'escalationSummary',
+  'escalationRequestedAt',
+]
+
 export const useAppStore = defineStore('app', () => {
   const authenticated = ref(localStorage.getItem(STORAGE.auth) === 'true')
   const inboxView = ref(
@@ -667,7 +677,14 @@ export const useAppStore = defineStore('app', () => {
       : mapConversation(summaryOrConversation)
     const index = conversations.value.findIndex((item) => item.id === mapped.id)
     if (index >= 0) {
-      conversations.value[index] = { ...conversations.value[index], ...mapped }
+      const existing = conversations.value[index]
+      const merged = { ...existing, ...mapped }
+      // Live message events carry no triage metadata, so a blind merge would
+      // erase the tag, summary and wait-time the queue snapshot established.
+      for (const key of ESCALATION_METADATA_KEYS) {
+        if (!mapped[key] && existing[key]) merged[key] = existing[key]
+      }
+      conversations.value[index] = merged
     } else {
       conversations.value.unshift(mapped)
     }
@@ -916,6 +933,9 @@ export const useAppStore = defineStore('app', () => {
     }
 
     if (event.type === 'chat_message') {
+      // A super-agent socket receives every tenant's traffic; only the business
+      // this dashboard is signed into belongs in its inbox.
+      if (!isCurrentEscalationBusiness(event)) return
       const id = conversationId(event.platform, event.messenger_id)
       upsertConversation({
         messenger_id: event.messenger_id,
@@ -1025,7 +1045,7 @@ export const useAppStore = defineStore('app', () => {
       const id = conversationId(event.platform, event.messenger_id)
       applyConfirmedEscalationRelease(id, mutation.startedAt)
       settleEscalationMutation('release', mutationKey, { value: true })
-      notify('Chat released back to the queue')
+      notify('Chat returned to the AI assistant')
       return
     }
 
@@ -1224,21 +1244,43 @@ export const useAppStore = defineStore('app', () => {
     localStorage.setItem(STORAGE.inboxView, view)
   }
 
+  /**
+   * Explain a refused claim/release instead of resolving null in silence — an
+   * unexplained no-op reads as a broken button.
+   */
+  function reportEscalationRefusal(reason) {
+    if (!escalationQueueAvailable.value || !authenticated.value) return null
+    notify(reason, 'error')
+    return null
+  }
+
   function claimEscalation(id) {
     if (
       !escalationQueueAvailable.value ||
       !authenticated.value ||
-      !businessId.value ||
-      !agentId.value ||
-      connectionStatus.value !== 'online'
+      !businessId.value
     )
       return Promise.resolve(null)
+    if (!agentId.value)
+      return Promise.resolve(
+        reportEscalationRefusal('Sign in again to claim conversations.'),
+      )
+    if (connectionStatus.value !== 'online')
+      return Promise.resolve(
+        reportEscalationRefusal(
+          'Not connected to the gateway — reconnecting, then try again.',
+        ),
+      )
     const escalation = escalations.value.find((item) => item.id === id)
     if (
       !escalation ||
       getEscalationOwnership(escalation, agentId.value) !== 'queued'
     )
-      return Promise.resolve(null)
+      return Promise.resolve(
+        reportEscalationRefusal(
+          'This chat is not waiting in the queue for a human agent.',
+        ),
+      )
     const key = `claim:${id}`
     if (escalationMutations.has(key))
       return escalationMutations.get(key).promise
@@ -1294,16 +1336,25 @@ export const useAppStore = defineStore('app', () => {
       !escalationQueueAvailable.value ||
       !authenticated.value ||
       !businessId.value ||
-      !agentId.value ||
-      connectionStatus.value !== 'online'
+      !agentId.value
     )
       return Promise.resolve(null)
+    if (connectionStatus.value !== 'online')
+      return Promise.resolve(
+        reportEscalationRefusal(
+          'Not connected to the gateway — reconnecting, then try again.',
+        ),
+      )
     const escalation = escalations.value.find((item) => item.id === id)
     if (
       !escalation ||
       getEscalationOwnership(escalation, agentId.value) !== 'mine'
     )
-      return Promise.resolve(null)
+      return Promise.resolve(
+        reportEscalationRefusal(
+          'Only the agent who claimed this chat can return it to the AI assistant.',
+        ),
+      )
     const key = `release:${id}`
     if (escalationMutations.has(key))
       return escalationMutations.get(key).promise

@@ -360,6 +360,69 @@ describe('escalation store', () => {
     })
     expect(store.escalations).toEqual([])
   })
+  test('a live message keeps the triage metadata the snapshot established', () => {
+    const socket = connectAgent()
+    socket.message({
+      type: 'queue_snapshot',
+      chats: [
+        row({
+          escalation_tag: 'billing',
+          escalation_summary: 'Charged twice for one booking.',
+        }),
+      ],
+    })
+    const before = store.conversations.find((item) => item.id === 'web:m1')
+    expect(before).toMatchObject({
+      escalationTag: 'billing',
+      escalationSummary: 'Charged twice for one booking.',
+      escalationRequestedAt: '2026-08-03T10:00:00Z',
+    })
+
+    // chat_message events carry no triage fields; merging one must not blank
+    // out the queue card.
+    socket.message({
+      type: 'chat_message',
+      platform: 'web',
+      messenger_id: 'm1',
+      business_id: 'biz_a',
+      from: 'user',
+      text: 'still waiting',
+      escalation_status: 'queued',
+      timestamp: '2026-08-03T10:05:00Z',
+    })
+    expect(
+      store.conversations.find((item) => item.id === 'web:m1'),
+    ).toMatchObject({
+      escalationTag: 'billing',
+      escalationSummary: 'Charged twice for one booking.',
+      escalationRequestedAt: '2026-08-03T10:00:00Z',
+      preview: 'still waiting',
+    })
+  })
+  test("another business's message never reaches this inbox", () => {
+    const socket = connectAgent()
+    socket.message({
+      type: 'chat_message',
+      platform: 'web',
+      messenger_id: 'foreign',
+      business_id: 'biz_b',
+      from: 'user',
+      text: 'wrong tenant',
+      timestamp: '2026-08-03T10:05:00Z',
+    })
+    expect(store.conversations.some((item) => item.id === 'web:foreign')).toBe(
+      false,
+    )
+  })
+  test('a refused claim explains itself instead of doing nothing', async () => {
+    gatewayApi.listConversations = async () => ({ conversations: [] })
+    connectAgent()
+    // Escalated in the inbox but absent from the queue: the old code resolved
+    // null and the button looked broken.
+    expect(await store.claimEscalation('web:missing')).toBeNull()
+    expect(store.toast).toMatchObject({ type: 'error' })
+    expect(store.toast.message).toContain('not waiting in the queue')
+  })
   test('business switch settles a pending release with cancellation', async () => {
     connectAgent()
     store.applyEscalationSnapshot(
