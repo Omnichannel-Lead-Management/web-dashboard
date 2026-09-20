@@ -29,10 +29,10 @@ async function request(path, options = {}) {
 }
 
 export const gatewayApi = {
-  createBusiness({ name, sector, owner_email }) {
+  createBusiness({ name, sector, owner_email, owner_name }) {
     return request('/api/businesses', {
       method: 'POST',
-      body: JSON.stringify({ name, sector, owner_email }),
+      body: JSON.stringify({ name, sector, owner_email, owner_name }),
     })
   },
 

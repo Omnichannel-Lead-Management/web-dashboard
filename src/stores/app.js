@@ -50,6 +50,7 @@ import {
   conversationId,
   parseConversationId,
   mapBusinessProfile,
+  personNameFromEmail,
 } from '../services/mappers'
 
 const STORAGE = {
@@ -57,7 +58,8 @@ const STORAGE = {
   businessId: 'loop-business-id',
   businessName: 'loop-business-name',
   agentId: 'loop-agent-id',
-  agentName: 'loop-agent-name',
+  // v2: the old key holds the hardcoded sign-in name this build removed.
+  agentName: 'loop-agent-name-v2',
   inboxView: 'loop-inbox-view',
   chatbot: 'loop-chatbot',
 }
@@ -78,6 +80,28 @@ const DEFAULT_WORKSPACE = {
   name: import.meta.env.VITE_BUSINESS_NAME || 'My Business',
   sector: import.meta.env.VITE_BUSINESS_SECTOR || 'salon',
   owner_email: import.meta.env.VITE_BUSINESS_EMAIL || '',
+}
+
+/** A fresh per-browser agent id — two tenants must never share one. */
+function newAgentId() {
+  const random = Math.random().toString(36).slice(2, 8)
+  return `agent_${Date.now().toString(36)}-${random}`
+}
+
+/**
+ * Who the dashboard shows as the signed-in person. The business's own owner
+ * name wins, then whatever this browser saved when it registered, then the
+ * address they signed in with — never a name baked into the build, which every
+ * tenant would otherwise share.
+ */
+function resolveAgentName(explicit, business, ownerEmail = '') {
+  return (
+    String(explicit || '').trim() ||
+    String(business?.owner_name || '').trim() ||
+    localStorage.getItem(STORAGE.agentName) ||
+    personNameFromEmail(business?.owner_email || ownerEmail) ||
+    'Agent'
+  )
 }
 
 /**
@@ -1176,19 +1200,23 @@ export const useAppStore = defineStore('app', () => {
     sector = DEFAULT_WORKSPACE.sector,
     owner_email = DEFAULT_WORKSPACE.owner_email,
     agent_id = '',
-    agent_name = 'Agent',
+    agent_name = '',
   } = {}) {
-    agentName.value = agent_name
+    // Never a fixed id: every tenant registering under the same agent id makes
+    // the hub treat them as one agent and disconnect whoever connected first.
     agentId.value =
-      agent_id ||
-      localStorage.getItem(STORAGE.agentId) ||
-      `agent_${Date.now().toString(36)}`
+      agent_id || localStorage.getItem(STORAGE.agentId) || newAgentId()
 
     if (businessId.value) {
       try {
         const existing = await gatewayApi.getBusiness(businessId.value)
         business.value = existing.business || null
         businessName.value = existing.business?.name || name
+        agentName.value = resolveAgentName(
+          agent_name,
+          existing.business,
+          owner_email,
+        )
         persistSession()
         return existing.business
       } catch {
@@ -1204,6 +1232,7 @@ export const useAppStore = defineStore('app', () => {
     businessId.value = created.business.id
     businessName.value = created.business.name
     business.value = created.business
+    agentName.value = resolveAgentName(agent_name, created.business, owner_email)
     persistSession()
     return created.business
   }
@@ -1223,12 +1252,13 @@ export const useAppStore = defineStore('app', () => {
       name: form.business,
       sector: normalizeBusinessSector(form.sector) || BUSINESS_SECTORS[0].value,
       owner_email: form.email,
+      owner_name: form.owner?.trim() || '',
     })
     businessId.value = created.business.id
     businessName.value = created.business.name
     business.value = created.business
-    agentName.value = form.owner?.split(' ')[0] || 'Owner'
-    agentId.value = `agent_${Date.now().toString(36)}`
+    agentName.value = resolveAgentName(form.owner, created.business, form.email)
+    agentId.value = newAgentId()
     authenticated.value = true
     persistSession()
     connectAgentChannel()

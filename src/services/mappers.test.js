@@ -34,6 +34,7 @@ import {
   mapWhatsAppQr,
   mapWhatsAppStatus,
   mapBusinessProfile,
+  personNameFromEmail,
   toBusinessProfilePatch,
   mapTelegramConnection,
   mapConversationTemplate,
@@ -1231,5 +1232,21 @@ describe('mapHistoryMessage media kind', () => {
     expect(
       mapHistoryMessage({ from: 'user', metadata: 'not json' }).kind,
     ).toBeNull()
+  })
+})
+
+describe('personNameFromEmail', () => {
+  test('names an account that stored no owner name', () => {
+    expect(personNameFromEmail('chanul.perera22@salon.lk')).toBe('Chanul')
+    expect(personNameFromEmail('kalanaliyanage22@gmail.com')).toBe(
+      'Kalanaliyanage',
+    )
+    expect(personNameFromEmail('sithumi_p@example.com')).toBe('Sithumi')
+  })
+  test('gives nothing back rather than a meaningless name', () => {
+    expect(personNameFromEmail('')).toBe('')
+    expect(personNameFromEmail(null)).toBe('')
+    expect(personNameFromEmail('@example.com')).toBe('')
+    expect(personNameFromEmail('123@example.com')).toBe('')
   })
 })

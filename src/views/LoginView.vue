@@ -29,12 +29,8 @@ async function submitLogin() {
 
   submitting.value = true
   try {
-    await store.login({
-      owner_email: loginForm.email,
-      agent_id: 'agent_sithumi',
-      agent_name: 'Sithumi',
-    })
-    store.notify('Welcome back, Sithumi.')
+    await store.login({ owner_email: loginForm.email })
+    store.notify(`Welcome back, ${store.agentName}.`)
     router.push('/inbox')
   } catch (error) {
     validationError.value = friendlyErrorMessage(

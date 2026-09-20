@@ -1008,3 +1008,15 @@ export function toBusinessProfilePatch(original, draft) {
   }
   return patch
 }
+
+/**
+ * A usable display name for an account that stored none: the first word of the
+ * address's local part, without its trailing digits.
+ * "chanul.perera22@salon.lk" -> "Chanul". Returns '' when nothing is usable.
+ */
+export function personNameFromEmail(email) {
+  const [local = ''] = String(email ?? '').split('@')
+  const [word = ''] = local.split(/[._+-]/).filter(Boolean)
+  const cleaned = word.replace(/\d+$/, '')
+  return cleaned ? cleaned[0].toUpperCase() + cleaned.slice(1) : ''
+}
