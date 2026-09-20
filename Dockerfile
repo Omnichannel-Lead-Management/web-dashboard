@@ -22,6 +22,20 @@ ENV VITE_AGENT_ESCALATION_QUEUE_ENABLED=$VITE_AGENT_ESCALATION_QUEUE_ENABLED
 # deployment compose file: an image built without it shows a read-only form.
 ARG VITE_BUSINESS_PROFILE_UPDATE_ENABLED=false
 ENV VITE_BUSINESS_PROFILE_UPDATE_ENABLED=$VITE_BUSINESS_PROFILE_UPDATE_ENABLED
+# Tenant-wide reporting from the gateway. Off, Analytics falls back to counting
+# only the records already loaded in the browser.
+ARG VITE_ANALYTICS_ENABLED=false
+ENV VITE_ANALYTICS_ENABLED=$VITE_ANALYTICS_ENABLED
+# The bell in the header, served by the notification service.
+ARG VITE_NOTIFICATION_CENTER_ENABLED=false
+ENV VITE_NOTIFICATION_CENTER_ENABLED=$VITE_NOTIFICATION_CENTER_ENABLED
+# The embedded web chat widget, which talks to the gateway over /ws/chat.
+ARG VITE_WEB_CHAT_ENABLED=false
+ENV VITE_WEB_CHAT_ENABLED=$VITE_WEB_CHAT_ENABLED
+# Visitors attaching images in web chat. Needs POCKETBASE_URL on the gateway:
+# without it /api/upload-image answers 503 and every attachment fails.
+ARG VITE_IMAGE_ATTACHMENTS_ENABLED=false
+ENV VITE_IMAGE_ATTACHMENTS_ENABLED=$VITE_IMAGE_ATTACHMENTS_ENABLED
 RUN bun run build
 
 FROM nginx:alpine
