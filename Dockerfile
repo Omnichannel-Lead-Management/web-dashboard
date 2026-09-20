@@ -18,6 +18,10 @@ ENV VITE_BUSINESS_EMAIL=$VITE_BUSINESS_EMAIL
 # Agents claim an escalated chat off the queue and release it back to the bot.
 ARG VITE_AGENT_ESCALATION_QUEUE_ENABLED=false
 ENV VITE_AGENT_ESCALATION_QUEUE_ENABLED=$VITE_AGENT_ESCALATION_QUEUE_ENABLED
+# Owners edit their own business profile from Settings. Off here, on in the
+# deployment compose file: an image built without it shows a read-only form.
+ARG VITE_BUSINESS_PROFILE_UPDATE_ENABLED=false
+ENV VITE_BUSINESS_PROFILE_UPDATE_ENABLED=$VITE_BUSINESS_PROFILE_UPDATE_ENABLED
 RUN bun run build
 
 FROM nginx:alpine
