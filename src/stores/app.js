@@ -717,14 +717,24 @@ export const useAppStore = defineStore('app', () => {
     return mapped
   }
 
-  function appendMessage(conversationKey, message) {
+  function appendMessage(conversationKey, message, { settles = false } = {}) {
     messages.value[conversationKey] ||= []
-    const exists = messages.value[conversationKey].some(
-      (item) => item.id === message.id,
-    )
-    if (!exists) {
-      messages.value[conversationKey].push(message)
+    const thread = messages.value[conversationKey]
+    if (thread.some((item) => item.id === message.id)) return
+    if (settles) {
+      // The gateway echoes an agent's own reply back to every dashboard on the
+      // business, this one included, under a server-side id. Settle the
+      // optimistic bubble instead of stacking a second copy of the same reply.
+      const pendingIndex = thread.findIndex(
+        (item) =>
+          item.pending && item.sender === 'agent' && item.text === message.text,
+      )
+      if (pendingIndex !== -1) {
+        thread[pendingIndex] = message
+        return
+      }
     }
+    thread.push(message)
   }
 
   async function refreshConversations() {
@@ -1014,6 +1024,11 @@ export const useAppStore = defineStore('app', () => {
           text: event.text,
           timestamp: event.timestamp,
         }),
+        {
+          settles:
+            event.from === 'agent' &&
+            (!event.agent_id || event.agent_id === agentId.value),
+        },
       )
       return
     }
@@ -1455,9 +1470,10 @@ export const useAppStore = defineStore('app', () => {
 
   function sendMessage(id, text) {
     const optimistic = {
-      id: Date.now(),
+      id: `pending-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       sender: 'agent',
       text,
+      pending: true,
       time: new Date().toLocaleTimeString([], {
         hour: '2-digit',
         minute: '2-digit',

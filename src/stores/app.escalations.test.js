@@ -399,6 +399,47 @@ describe('escalation store', () => {
       preview: 'still waiting',
     })
   })
+  test("an agent's own reply survives the gateway echo as one bubble", () => {
+    const socket = connectAgent()
+    store.sendMessage('web:m1', 'hi how can help you')
+    expect(store.messages['web:m1']).toHaveLength(1)
+
+    // The hub broadcasts a claimed chat's agent reply to every dashboard on
+    // the business, the sender included, under its own server-side id.
+    socket.message({
+      type: 'chat_message',
+      platform: 'web',
+      messenger_id: 'm1',
+      business_id: 'biz_a',
+      from: 'agent',
+      agent_id: 'agent_a',
+      text: 'hi how can help you',
+      escalation_status: 'claimed',
+      timestamp: '2026-08-03T10:06:00Z',
+    })
+    expect(store.messages['web:m1']).toHaveLength(1)
+    expect(store.messages['web:m1'][0]).toMatchObject({
+      sender: 'agent',
+      text: 'hi how can help you',
+    })
+    expect(store.messages['web:m1'][0].pending).toBeUndefined()
+  })
+  test("a teammate's identical reply still shows as its own message", () => {
+    const socket = connectAgent()
+    store.sendMessage('web:m1', 'on my way')
+    socket.message({
+      type: 'chat_message',
+      platform: 'web',
+      messenger_id: 'm1',
+      business_id: 'biz_a',
+      from: 'agent',
+      agent_id: 'agent_b',
+      text: 'on my way',
+      escalation_status: 'claimed',
+      timestamp: '2026-08-03T10:07:00Z',
+    })
+    expect(store.messages['web:m1']).toHaveLength(2)
+  })
   test("another business's message never reaches this inbox", () => {
     const socket = connectAgent()
     socket.message({
