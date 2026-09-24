@@ -183,18 +183,26 @@ export const useAppStore = defineStore('app', () => {
   const toast = ref(null)
   const connectionStatus = ref('offline')
   /**
-   * A build pinned to a tenant (VITE_BUSINESS_ID) wins over whatever is in
-   * localStorage. The other way round, a browser that signed in before the
-   * build was pinned keeps its old business id forever and shows that tenant's
-   * — usually empty — inbox, while messages pile up under the real one.
+   * The signed-in session owns exactly one business, and the gateway rejects
+   * any request naming a different one. So a session, once present, decides the
+   * tenant and the build-time pin (VITE_BUSINESS_ID) must not override it —
+   * doing so made every request 403 whenever the account that signed in owned a
+   * business other than the pinned one.
+   *
+   * The pin still matters before sign-in: it stops a fresh browser showing an
+   * empty tenant while messages pile up under the real one. Sign-in no longer
+   * registers a business, so the pin is a starting point, not the authority.
    */
   const storedBusinessId = localStorage.getItem(STORAGE.businessId) || ''
   const pinnedBusinessId = DEFAULT_WORKSPACE.id
-  if (pinnedBusinessId && storedBusinessId !== pinnedBusinessId) {
+  const sessionOwnsBusiness = authenticated.value && Boolean(storedBusinessId)
+  if (pinnedBusinessId && !sessionOwnsBusiness && storedBusinessId !== pinnedBusinessId) {
     localStorage.setItem(STORAGE.businessId, pinnedBusinessId)
     localStorage.removeItem(STORAGE.businessName)
   }
-  const businessId = ref(pinnedBusinessId || storedBusinessId)
+  const businessId = ref(
+    sessionOwnsBusiness ? storedBusinessId : pinnedBusinessId || storedBusinessId,
+  )
   const businessName = ref(
     localStorage.getItem(STORAGE.businessName) ||
       DEFAULT_WORKSPACE.name ||

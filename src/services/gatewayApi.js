@@ -59,7 +59,11 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    if (response.status === 401 && sessionToken) {
+    // 401 = no/!expired session. 403 = the session is valid but names another
+    // tenant, which only happens when the stored business id disagrees with the
+    // signed-in account; both leave the dashboard unusable until it signs in
+    // again, so both tear the session down rather than looping on failures.
+    if ((response.status === 401 || response.status === 403) && sessionToken) {
       setSessionToken('')
       onUnauthorized?.()
     }
