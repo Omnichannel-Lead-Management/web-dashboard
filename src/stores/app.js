@@ -1,6 +1,11 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { gatewayApi } from '../services/gatewayApi'
+import {
+  gatewayApi,
+  getSessionToken,
+  setSessionToken,
+  setUnauthorizedHandler,
+} from '../services/gatewayApi'
 import { appointmentService } from '../services/appointmentService'
 import { leadService } from '../services/leadService'
 import { createAgentSocket } from '../services/agentSocket'
@@ -118,7 +123,9 @@ const ESCALATION_METADATA_KEYS = [
 const NO_MESSAGES_PREVIEW = 'No messages yet'
 
 export const useAppStore = defineStore('app', () => {
-  const authenticated = ref(localStorage.getItem(STORAGE.auth) === 'true')
+  const authenticated = ref(
+    localStorage.getItem(STORAGE.auth) === 'true' && Boolean(getSessionToken()),
+  )
   const inboxView = ref(
     localStorage.getItem(STORAGE.inboxView) || 'conversation',
   )
@@ -1195,56 +1202,35 @@ export const useAppStore = defineStore('app', () => {
     connectionStatus.value = 'offline'
   }
 
-  async function ensureBusinessSession({
-    name = DEFAULT_WORKSPACE.name,
-    sector = DEFAULT_WORKSPACE.sector,
-    owner_email = DEFAULT_WORKSPACE.owner_email,
+  /**
+   * Signs in against the gateway. The workspace is whatever the credentials
+   * resolve to — this no longer registers a business as a side effect of
+   * signing in, because that let anyone with the page create a tenant.
+   */
+  async function login({
+    owner_email = '',
+    password = '',
     agent_id = '',
     agent_name = '',
   } = {}) {
-    // Never a fixed id: every tenant registering under the same agent id makes
-    // the hub treat them as one agent and disconnect whoever connected first.
+    const session = await gatewayApi.login({ owner_email, password })
+    const signedIn = session?.business
+    if (!signedIn?.id) throw new Error('Sign-in did not return a workspace')
+
+    businessId.value = signedIn.id
+    businessName.value = signedIn.name || ''
+    business.value = signedIn
     agentId.value =
       agent_id || localStorage.getItem(STORAGE.agentId) || newAgentId()
+    agentName.value = resolveAgentName(agent_name, signedIn, owner_email)
 
-    if (businessId.value) {
-      try {
-        const existing = await gatewayApi.getBusiness(businessId.value)
-        business.value = existing.business || null
-        businessName.value = existing.business?.name || name
-        agentName.value = resolveAgentName(
-          agent_name,
-          existing.business,
-          owner_email,
-        )
-        persistSession()
-        return existing.business
-      } catch {
-        // fall through and create
-      }
-    }
-
-    const created = await gatewayApi.createBusiness({
-      name,
-      sector,
-      owner_email,
-    })
-    businessId.value = created.business.id
-    businessName.value = created.business.name
-    business.value = created.business
-    agentName.value = resolveAgentName(agent_name, created.business, owner_email)
-    persistSession()
-    return created.business
-  }
-
-  async function login(options = {}) {
-    await ensureBusinessSession(options)
     authenticated.value = true
     persistSession()
     await refreshConversations()
     connectAgentChannel()
     refreshLeads().finally(connectLeadStream)
     refreshAppointments()
+    return signedIn
   }
 
   async function registerBusiness(form) {
@@ -1253,7 +1239,11 @@ export const useAppStore = defineStore('app', () => {
       sector: normalizeBusinessSector(form.sector) || BUSINESS_SECTORS[0].value,
       owner_email: form.email,
       owner_name: form.owner?.trim() || '',
+      password: form.password,
     })
+    // Registration stores the password but issues no session, so exchange the
+    // credentials for a token before the dashboard makes its first call.
+    await gatewayApi.login({ owner_email: form.email, password: form.password })
     businessId.value = created.business.id
     businessName.value = created.business.name
     business.value = created.business
@@ -1280,6 +1270,7 @@ export const useAppStore = defineStore('app', () => {
 
   function logout() {
     authenticated.value = false
+    setSessionToken('')
     localStorage.setItem(STORAGE.auth, 'false')
     disconnectAgentChannel()
     disconnectLeadStream()
@@ -2853,6 +2844,10 @@ export const useAppStore = defineStore('app', () => {
     refreshLeads().finally(connectLeadStream)
     refreshAppointments()
   }
+
+  setUnauthorizedHandler(() => {
+    if (authenticated.value) logout()
+  })
 
   return {
     authenticated,

@@ -6,6 +6,9 @@ import AppButton from '../components/common/AppButton.vue'
 import { BUSINESS_SECTORS } from '../constants/businessSectors'
 import { friendlyErrorMessage } from '../services/displayText'
 
+/** Must match the gateway's MIN_PASSWORD_LENGTH, or signup 400s on submit. */
+const MIN_PASSWORD_LENGTH = 8
+
 const router = useRouter()
 const store = useAppStore()
 const validationError = ref('')
@@ -25,10 +28,10 @@ async function submitRegistration() {
     !registrationForm.sector ||
     !registrationForm.owner ||
     !/^\S+@\S+\.\S+$/.test(registrationForm.email) ||
-    registrationForm.password.length < 6
+    registrationForm.password.length < MIN_PASSWORD_LENGTH
   ) {
     validationError.value =
-      'Please complete every required field with valid details.'
+      `Please complete every required field, with a password of at least ${MIN_PASSWORD_LENGTH} characters.`
     return
   }
 
@@ -96,7 +99,7 @@ async function submitRegistration() {
           <input
             v-model="registrationForm.password"
             type="password"
-            minlength="6"
+            :minlength="MIN_PASSWORD_LENGTH"
             required
           />
         </label>

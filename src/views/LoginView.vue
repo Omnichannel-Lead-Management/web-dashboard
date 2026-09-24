@@ -18,18 +18,21 @@ async function submitLogin() {
   if (submitting.value) return
   validationError.value = ''
 
+  // Shape check only. Whether the credentials are correct is the gateway's
+  // answer, not this form's.
   const hasValidEmail = /^\S+@\S+\.\S+$/.test(loginForm.email)
-  const hasValidPassword = loginForm.password.length >= 6
 
-  if (!hasValidEmail || !hasValidPassword) {
-    validationError.value =
-      'Enter a valid email and a password of at least 6 characters.'
+  if (!hasValidEmail || !loginForm.password) {
+    validationError.value = 'Enter your email address and password.'
     return
   }
 
   submitting.value = true
   try {
-    await store.login({ owner_email: loginForm.email })
+    await store.login({
+      owner_email: loginForm.email,
+      password: loginForm.password,
+    })
     store.notify(`Welcome back, ${store.agentName}.`)
     router.push('/inbox')
   } catch (error) {
@@ -37,6 +40,7 @@ async function submitLogin() {
       error,
       'We could not sign you in. Check your details and try again.',
     )
+    loginForm.password = ''
   } finally {
     submitting.value = false
   }

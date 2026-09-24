@@ -1,9 +1,51 @@
 import { GATEWAY_URL } from '../config'
 
+const TOKEN_STORAGE_KEY = 'loop-session-token'
+
+/**
+ * The gateway rejects `/api/` requests without a session token, and every call
+ * in this module goes through `request()`, so the token is attached in exactly
+ * one place. It is mirrored into localStorage so a refresh keeps the session.
+ */
+let sessionToken = readStoredToken()
+
+function readStoredToken() {
+  try {
+    return localStorage.getItem(TOKEN_STORAGE_KEY) || ''
+  } catch {
+    // Private mode or blocked storage: run with an in-memory token only.
+    return ''
+  }
+}
+
+export function setSessionToken(token) {
+  sessionToken = token || ''
+  try {
+    if (sessionToken) localStorage.setItem(TOKEN_STORAGE_KEY, sessionToken)
+    else localStorage.removeItem(TOKEN_STORAGE_KEY)
+  } catch {
+    // Non-fatal: the in-memory token still authenticates this tab.
+  }
+}
+
+export function getSessionToken() {
+  return sessionToken
+}
+
+/**
+ * Called when the gateway rejects our token so the store can drop the session
+ * and send the user back to /login instead of leaving a half-dead dashboard.
+ */
+let onUnauthorized = null
+export function setUnauthorizedHandler(handler) {
+  onUnauthorized = handler
+}
+
 async function request(path, options = {}) {
   const response = await fetch(`${GATEWAY_URL}${path}`, {
     headers: {
       'Content-Type': 'application/json',
+      ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
       ...(options.headers || {}),
     },
     ...options,
@@ -17,6 +59,11 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
+    if (response.status === 401 && sessionToken) {
+      setSessionToken('')
+      onUnauthorized?.()
+    }
+
     const message =
       body?.message || body?.error || `Request failed (${response.status})`
     const error = new Error(message)
@@ -29,11 +76,32 @@ async function request(path, options = {}) {
 }
 
 export const gatewayApi = {
-  createBusiness({ name, sector, owner_email, owner_name }) {
-    return request('/api/businesses', {
+  async login({ owner_email, password }) {
+    const body = await request('/api/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ name, sector, owner_email, owner_name }),
+      body: JSON.stringify({ owner_email, password }),
     })
+    if (body?.token) setSessionToken(body.token)
+    return body
+  },
+
+  currentSession() {
+    return request('/api/auth/me')
+  },
+
+  changePassword({ current_password, new_password }) {
+    return request('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ current_password, new_password }),
+    })
+  },
+
+  async createBusiness({ name, sector, owner_email, owner_name, password }) {
+    const body = await request('/api/businesses', {
+      method: 'POST',
+      body: JSON.stringify({ name, sector, owner_email, owner_name, password }),
+    })
+    return body
   },
 
   getBusiness(id) {
@@ -214,7 +282,11 @@ export const gatewayApi = {
 
   /** URL for the live lead feed — consumed by EventSource, not fetch. */
   leadStreamUrl(businessId) {
-    return `${GATEWAY_URL}/api/leads/stream?businessId=${encodeURIComponent(businessId)}`
+    // EventSource cannot set an Authorization header, so this one route also
+    // accepts the session token as a query parameter (see requireAuth.ts).
+    const params = new URLSearchParams({ businessId })
+    if (sessionToken) params.set('access_token', sessionToken)
+    return `${GATEWAY_URL}/api/leads/stream?${params}`
   },
 
   // ── Appointments (proxied to the Appointment service) ──

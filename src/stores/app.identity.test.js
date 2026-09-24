@@ -23,6 +23,7 @@ class FakeAgentSocket {
 
 let store
 let created
+let signedIn
 
 beforeEach(() => {
   storage.clear()
@@ -30,6 +31,12 @@ beforeEach(() => {
   setActivePinia(createPinia())
   store = useAppStore()
   created = []
+  signedIn = []
+  // Registration now exchanges the new credentials for a session token.
+  gatewayApi.login = async (payload) => {
+    signedIn.push(payload)
+    return { token: 'test-token', business: { id: 'biz_new', name: 'stub' } }
+  }
   gatewayApi.createBusiness = async (payload) => {
     created.push(payload)
     return {
@@ -49,6 +56,7 @@ const registrationForm = (changes = {}) => ({
   sector: 'salon',
   owner: 'Chanul Pathirana',
   email: 'chanul@salon.lk',
+  password: 'a-good-password',
   ...changes,
 })
 
@@ -61,6 +69,15 @@ describe('signed-in identity', () => {
       owner_name: 'Chanul Pathirana',
     })
     expect(store.agentName).toBe('Chanul Pathirana')
+  })
+
+  test('registration signs the new owner in with the password it just set', async () => {
+    await store.registerBusiness(registrationForm())
+    expect(created[0]).toMatchObject({ password: 'a-good-password' })
+    expect(signedIn[0]).toEqual({
+      owner_email: 'chanul@salon.lk',
+      password: 'a-good-password',
+    })
   })
 
   test('two businesses registering never share one identity', async () => {
