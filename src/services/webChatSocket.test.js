@@ -466,3 +466,55 @@ describe('web chat socket', () => {
     expect(timers).toHaveLength(0)
   })
 })
+
+describe('tenant on the socket url', () => {
+  test('the business id is sent as a query parameter', () => {
+    const urls = []
+    class CapturingSocket {
+      constructor(url) {
+        urls.push(url)
+        this.readyState = 0
+      }
+      addEventListener() {}
+      send() {}
+      close() {}
+    }
+
+    const socket = createWebChatSocket({
+      enabled: true,
+      WebSocketImpl: CapturingSocket,
+      gatewayUrl: 'https://gateway.test',
+      getBusinessId: () => 'biz_real_tenant',
+      navigatorRef: { onLine: true },
+      eventTarget: { addEventListener() {}, removeEventListener() {} },
+    })
+    socket.connect()
+
+    expect(urls[0]).toContain('business_id=biz_real_tenant')
+  })
+
+  test('no business id leaves the url clean rather than sending an empty one', () => {
+    const urls = []
+    class CapturingSocket {
+      constructor(url) {
+        urls.push(url)
+        this.readyState = 0
+      }
+      addEventListener() {}
+      send() {}
+      close() {}
+    }
+
+    const socket = createWebChatSocket({
+      enabled: true,
+      WebSocketImpl: CapturingSocket,
+      gatewayUrl: 'https://gateway.test',
+      getBusinessId: () => '',
+      navigatorRef: { onLine: true },
+      eventTarget: { addEventListener() {}, removeEventListener() {} },
+    })
+    socket.connect()
+
+    expect(urls[0]).not.toContain('business_id')
+  })
+})

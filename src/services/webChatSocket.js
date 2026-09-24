@@ -19,6 +19,7 @@ export function createWebChatSocket({
   maxReconnectAttempts = 4,
   reconnectDelays = [500, 1000, 2000, 4000],
   getSessionId = () => '',
+  getBusinessId = () => '',
   onFrame,
   onSessionId,
   onState,
@@ -73,7 +74,14 @@ export function createWebChatSocket({
     setState(reconnectAttempts ? 'reconnecting' : 'connecting')
     let current
     try {
-      const url = gatewayWsUrl('/ws/chat', gatewayUrl)
+      // The tenant has to ride on the URL: a browser WebSocket cannot send
+      // headers, and without it the gateway files the conversation under
+      // biz_default instead of the business the customer is talking to.
+      const businessId = String(getBusinessId() || '').trim()
+      const base = gatewayWsUrl('/ws/chat', gatewayUrl)
+      const url = businessId
+        ? `${base}?business_id=${encodeURIComponent(businessId)}`
+        : base
       current = new WebSocketImpl(url)
     } catch (error) {
       socket = null

@@ -4,6 +4,13 @@ const gatewayUrl = (
 
 export const GATEWAY_URL = gatewayUrl
 
+/**
+ * Tenant this build belongs to. The customer web chat widget has no dashboard
+ * session to read a business from, so this is what tells the gateway which
+ * business the conversation belongs to.
+ */
+export const BUSINESS_ID = import.meta.env.VITE_BUSINESS_ID || ''
+
 export function explicitTrue(value) {
   return value === 'true'
 }

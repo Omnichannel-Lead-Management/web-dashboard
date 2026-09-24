@@ -5,7 +5,7 @@ import WebChatConnectionState from '../components/web-chat/WebChatConnectionStat
 import WebChatMessageList from '../components/web-chat/WebChatMessageList.vue'
 import WebChatShell from '../components/web-chat/WebChatShell.vue'
 import WebChatWelcome from '../components/web-chat/WebChatWelcome.vue'
-import { imageAttachmentsEnabled, webChatEnabled } from '../config'
+import { BUSINESS_ID, imageAttachmentsEnabled, webChatEnabled } from '../config'
 import { uploadChatImage } from '../services/chatMediaUpload'
 import {
   createImageAttachmentDraft,
@@ -50,6 +50,7 @@ function makeSocket() {
     enabled: webChatEnabled,
     imagesEnabled: imageAttachmentsEnabled,
     getSessionId: () => session.value.sessionId,
+    getBusinessId: () => BUSINESS_ID,
     onState: (state) => {
       connectionState.value = state
       if (state === 'connected') connectionError.value = ''
