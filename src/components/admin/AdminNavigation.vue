@@ -1,43 +1,45 @@
 <script setup>
 import { computed } from 'vue'
 import {
-  Inbox,
-  Users,
-  CalendarDays,
-  ChartNoAxesCombined,
-  Settings,
-  LifeBuoy,
+  LayoutDashboard,
+  Building2,
   ReceiptText,
+  Tags,
+  ShieldCheck,
 } from 'lucide-vue-next'
-import { useAppStore } from '../../stores/app'
+import { useAdminStore } from '../../stores/admin'
 
-const store = useAppStore()
+const store = useAdminStore()
 
 const links = computed(() =>
   [
-    { to: '/inbox', label: 'Inbox', icon: Inbox },
+    { to: '/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
+    { to: '/admin/businesses', label: 'Businesses', icon: Building2 },
+    { to: '/admin/invoices', label: 'Invoices', icon: ReceiptText },
+    { to: '/admin/pricing', label: 'Pricing', icon: Tags },
     {
-      to: '/escalations',
-      label: 'Queue',
-      icon: LifeBuoy,
-      show: store.escalationQueueAvailable,
-      badge: store.escalations.filter((item) => item.status === 'queued')
-        .length,
+      to: '/admin/team',
+      label: 'Team',
+      icon: ShieldCheck,
+      show: store.isOwner,
     },
-    { to: '/leads', label: 'Leads', icon: Users },
-    { to: '/appointments', label: 'Appointments', icon: CalendarDays },
-    { to: '/analytics', label: 'Analytics', icon: ChartNoAxesCombined },
-    { to: '/billing', label: 'Billing', icon: ReceiptText },
-    { to: '/settings', label: 'Settings', icon: Settings },
   ].filter((link) => link.show !== false),
 )
 </script>
 <template>
-  <nav aria-label="Main navigation">
-    <RouterLink v-for="link in links" :key="link.to" :to="link.to">
+  <nav aria-label="Admin navigation">
+    <RouterLink
+      v-for="link in links"
+      :key="link.to"
+      :to="link.to"
+      :class="{
+        'router-link-active': link.exact
+          ? $route.path === link.to
+          : $route.path.startsWith(link.to),
+      }"
+    >
       <component :is="link.icon" :size="17" />
       <span>{{ link.label }}</span>
-      <i v-if="link.badge" class="count">{{ link.badge }}</i>
     </RouterLink>
   </nav>
 </template>
@@ -77,19 +79,6 @@ a svg {
 a.router-link-active svg {
   opacity: 1;
 }
-.count {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-pill);
-  background: var(--danger);
-  color: #fff;
-  font-size: var(--fs-2xs);
-  font-style: normal;
-  font-weight: 700;
-}
 
 @media (max-width: 1080px) {
   a span {
@@ -126,11 +115,6 @@ a.router-link-active svg {
   a.router-link-active,
   a.router-link-active:hover {
     background: transparent;
-  }
-  .count {
-    position: absolute;
-    top: 2px;
-    right: 6px;
   }
 }
 </style>

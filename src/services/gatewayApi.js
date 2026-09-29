@@ -342,4 +342,25 @@ export const gatewayApi = {
       { method: 'POST' },
     )
   },
+
+  /**
+   * The tenant's own billing page: their rate card, their usage so far, and
+   * the invoices the platform has issued them. Drafts are never returned here
+   * — an owner should only ever see a bill that has actually been sent.
+   */
+  getBilling(businessId, { from, to } = {}) {
+    const params = new URLSearchParams()
+    if (from) params.set('from', from)
+    if (to) params.set('to', to)
+    const query = params.toString()
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/billing${query ? `?${query}` : ''}`,
+    )
+  },
+
+  getBusinessInvoice(businessId, invoiceId) {
+    return request(
+      `/api/businesses/${encodeURIComponent(businessId)}/invoices/${encodeURIComponent(invoiceId)}`,
+    )
+  },
 }

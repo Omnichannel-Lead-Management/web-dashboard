@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 
 import { useAppStore } from '../stores/app'
+import { useAdminStore } from '../stores/admin'
 
 const routes = [
   {
@@ -51,6 +52,60 @@ const routes = [
     component: () => import('../views/OnboardingView.vue'),
   },
   { path: '/settings', component: () => import('../views/SettingsView.vue') },
+  { path: '/billing', component: () => import('../views/BillingView.vue') },
+
+  /**
+   * The platform admin console. `meta.admin` puts these routes on the admin
+   * session instead of the business one — the guard below treats the two as
+   * entirely separate worlds, so being signed in to one is never being signed
+   * in to the other.
+   */
+  {
+    path: '/admin/login',
+    component: () => import('../views/admin/AdminLoginView.vue'),
+    meta: { admin: true, guest: true },
+  },
+  {
+    path: '/admin',
+    component: () => import('../views/admin/AdminOverviewView.vue'),
+    meta: { admin: true },
+  },
+  {
+    path: '/admin/businesses',
+    component: () => import('../views/admin/AdminBusinessesView.vue'),
+    meta: { admin: true },
+  },
+  {
+    path: '/admin/businesses/:id',
+    component: () => import('../views/admin/AdminBusinessDetailView.vue'),
+    meta: { admin: true },
+  },
+  {
+    path: '/admin/invoices',
+    component: () => import('../views/admin/AdminInvoicesView.vue'),
+    meta: { admin: true },
+  },
+  {
+    path: '/admin/invoices/:id',
+    component: () => import('../views/admin/AdminInvoiceDetailView.vue'),
+    meta: { admin: true },
+  },
+  {
+    path: '/admin/pricing',
+    component: () => import('../views/admin/AdminPricingView.vue'),
+    meta: { admin: true },
+  },
+  {
+    path: '/admin/team',
+    component: () => import('../views/admin/AdminTeamView.vue'),
+    meta: { admin: true, owner: true },
+  },
+  {
+    path: '/admin/account',
+    component: () => import('../views/admin/AdminAccountView.vue'),
+    meta: { admin: true },
+  },
+
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 const router = createRouter({
@@ -68,7 +123,35 @@ function isDesignPreview(to) {
   return import.meta.env.DEV && to.path === '/inbox' && to.query.preview === '1'
 }
 
-router.beforeEach((to) => {
+/**
+ * Admin routes are guarded against the admin session and nothing else. A
+ * stored admin token is re-checked with the gateway on the first navigation
+ * into the console, so a token that was revoked (or an account that was
+ * deactivated) lands on the login page rather than on an empty dashboard.
+ */
+let adminSessionChecked = false
+
+async function guardAdmin(to) {
+  const admin = useAdminStore()
+
+  if (!adminSessionChecked && !to.meta.guest) {
+    adminSessionChecked = true
+    await admin.restoreSession()
+  }
+
+  if (!to.meta.guest && !admin.authenticated) return '/admin/login'
+  if (to.meta.guest && admin.authenticated) return '/admin'
+
+  // Team management is owner-only; a billing admin who types the URL is sent
+  // back rather than shown a page that will only answer 403.
+  if (to.meta.owner && !admin.isOwner) return '/admin'
+
+  return true
+}
+
+router.beforeEach(async (to) => {
+  if (to.meta.admin) return await guardAdmin(to)
+
   const store = useAppStore()
 
   if (isDesignPreview(to)) return true
